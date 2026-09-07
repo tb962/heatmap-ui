@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>heatmapUI — playground</title>
+<title>heatmap-ui — playground</title>
 <link rel="stylesheet" href="../src/styles.css" />
 <style>
   :root { color-scheme: light dark; --bg:#faf9f7; --panel:#fff; --line:#e6e1d9; --ink:#1a1815; --muted:#7d766d; --accent:#2563eb; }
@@ -126,7 +126,7 @@ function App(){
 
   return h("div",{className:"shell"},
     h("aside",{className:"panel"},
-      h("h1",null,"heatmapUI"),
+      h("h1",null,"heatmap-ui"),
       h("p",{className:"sub"},"Any grid. Honest gaps. Quantile shading."),
       h("div",{className:"group"},h("h2",null,"Theme"),
         h(Seg,{value:s.theme,options:["system","light","dark"],onChange:v=>set("theme",v)})),

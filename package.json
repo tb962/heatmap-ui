@@ -34,9 +34,9 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.0.0"
   },
-  "repository": { "type": "git", "url": "git+https://github.com/tb962/heatmapUI.git" },
-  "homepage": "https://github.com/tb962/heatmapUI#readme",
-  "bugs": { "url": "https://github.com/tb962/heatmapUI/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/tb962/heatmap-ui.git" },
+  "homepage": "https://github.com/tb962/heatmap-ui#readme",
+  "bugs": { "url": "https://github.com/tb962/heatmap-ui/issues" },
   "author": "tb962",
   "keywords": [
     "heatmap", "react", "calendar-heatmap", "contribution-graph", "punchcard",

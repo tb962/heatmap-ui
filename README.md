@@ -1,4 +1,4 @@
-# heatmapUI
+# heatmap-ui
 
 A headless heatmap for React. Any grid, not just calendars — and it does not
 lie about gaps.
