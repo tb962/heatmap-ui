@@ -1,0 +1,170 @@
+/*
+ * Structural styles only. Colour comes from props, so the component drops into
+ * any design without a token layer to override. The few colours here belong to
+ * the tooltip, which needs contrast against the page rather than the data.
+ */
+.heatmap {
+  --heatmap-tooltip-bg: rgba(26, 24, 21, 0.97);
+  --heatmap-tooltip-text: #ffffff;
+  --heatmap-tooltip-border: rgba(255, 255, 255, 0.12);
+  --heatmap-tooltip-shadow: 0 12px 28px rgba(26, 24, 21, 0.22);
+  --heatmap-label: #57606a;
+
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: inherit;
+}
+
+.heatmap *,
+.heatmap *::before,
+.heatmap *::after {
+  box-sizing: border-box;
+}
+
+.heatmap__body {
+  display: flex;
+  gap: 6px;
+}
+
+.heatmap__grid {
+  position: relative;
+  flex: none;
+}
+
+.heatmap__cell-slot {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.heatmap__cell-slot[tabindex] {
+  cursor: default;
+}
+
+.heatmap__cell-slot[role="button"] {
+  cursor: pointer;
+}
+
+.heatmap__cell-slot:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.heatmap__cell {
+  transition: transform 140ms ease-out, opacity 140ms ease-out;
+}
+
+.heatmap__cell-slot:hover .heatmap__cell,
+.heatmap__cell-slot:focus-visible .heatmap__cell {
+  transform: scale(1.18);
+}
+
+/* Column labels sit above the grid, positioned by column index. */
+.heatmap__column-labels {
+  position: relative;
+}
+
+.heatmap__column-label {
+  position: absolute;
+  top: 0;
+  color: var(--heatmap-label);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.heatmap__row-labels {
+  position: relative;
+  flex: none;
+  width: 2.2em;
+}
+
+.heatmap__row-label {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  color: var(--heatmap-label);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--heatmap-label);
+  font-size: 10px;
+}
+
+.heatmap__legend span:first-child {
+  margin-right: 2px;
+}
+
+.heatmap__legend-unknown {
+  margin-left: 0.5rem;
+}
+
+.heatmap__legend-swatch {
+  display: inline-block;
+  flex: none;
+}
+
+.heatmap__tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 9px;
+  border: 1px solid var(--heatmap-tooltip-border);
+  border-radius: 8px;
+  background: var(--heatmap-tooltip-bg);
+  box-shadow: var(--heatmap-tooltip-shadow);
+  color: var(--heatmap-tooltip-text);
+  font-size: 11px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.heatmap__tooltip[data-align="center"] {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.heatmap__tooltip[data-align="start"] {
+  left: 0;
+}
+
+.heatmap__tooltip[data-align="end"] {
+  right: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .heatmap:not([data-heatmap-theme="light"]) {
+    --heatmap-tooltip-bg: rgba(240, 238, 235, 0.97);
+    --heatmap-tooltip-text: #171614;
+    --heatmap-tooltip-border: rgba(0, 0, 0, 0.14);
+    --heatmap-label: #9a938a;
+  }
+}
+
+.heatmap[data-heatmap-theme="dark"] {
+  --heatmap-tooltip-bg: rgba(240, 238, 235, 0.97);
+  --heatmap-tooltip-text: #171614;
+  --heatmap-tooltip-border: rgba(0, 0, 0, 0.14);
+  --heatmap-label: #9a938a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heatmap__cell {
+    transition: none;
+  }
+  .heatmap__cell-slot:hover .heatmap__cell,
+  .heatmap__cell-slot:focus-visible .heatmap__cell {
+    transform: none;
+  }
+}

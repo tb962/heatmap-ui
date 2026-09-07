@@ -1,0 +1,47 @@
+{
+  "name": "@tb962/heatmap-ui",
+  "version": "0.1.0",
+  "description": "A headless, honest heatmap for React. Any grid, quantile shading, and gaps that read as gaps.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "src/styles.css", "README.md", "LICENSE"],
+  "sideEffects": ["**/*.css"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0",
+    "react-dom": ">=18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  },
+  "repository": { "type": "git", "url": "git+https://github.com/tb962/heatmapUI.git" },
+  "homepage": "https://github.com/tb962/heatmapUI#readme",
+  "bugs": { "url": "https://github.com/tb962/heatmapUI/issues" },
+  "author": "tb962",
+  "keywords": [
+    "heatmap", "react", "calendar-heatmap", "contribution-graph", "punchcard",
+    "hexbin", "data-visualization", "grid", "quantile", "accessible"
+  ],
+  "engines": { "node": ">=20" },
+  "publishConfig": { "access": "public" }
+}
