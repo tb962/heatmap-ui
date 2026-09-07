@@ -10,6 +10,7 @@ export {
   quantileThresholds,
 } from "./scale.js";
 export { fillStyle, rowOffset, rowSpacing, shapeStyle } from "./shapes.js";
+export { deriveRamp, luminance, parseHex, type RampOptions } from "./colors.js";
 export type {
   HeatmapCell,
   HeatmapEncoding,
