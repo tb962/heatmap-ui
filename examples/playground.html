@@ -4,43 +4,539 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>heatmap-ui — playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="../src/styles.css" />
 <style>
-  :root { color-scheme: light dark; --bg:#faf9f7; --panel:#fff; --line:#e6e1d9; --ink:#1a1815; --muted:#7d766d; --accent:#2563eb; }
-  /* Explicit choice wins in both directions; no attribute means follow the system. */
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#0f0e0d; --panel:#171614; --line:#2a2724; --ink:#e8e6e3; --muted:#9a938a; }
+/* ---------------------------------------------------------------------------
+ * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
+ * and a bundler; this page is served as a static file, so the system is
+ * reproduced here by hand — same tokens, same radii, same component anatomy.
+ * ------------------------------------------------------------------------- */
+:root {
+  color-scheme: light dark;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+
+  /* Hairline over artwork: pure black light, pure white dark. Never tinted. */
+  --hairline: oklch(0 0 0 / 0.1);
+
+  /* Depth is a shadow, structure is a border. */
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-border:
+    0 0 0 1px oklch(0 0 0 / 0.06),
+    0 1px 2px -1px oklch(0 0 0 / 0.06),
+    0 2px 4px 0 oklch(0 0 0 / 0.04);
+  --shadow-border-hover:
+    0 0 0 1px oklch(0 0 0 / 0.08),
+    0 1px 2px -1px oklch(0 0 0 / 0.08),
+    0 2px 4px 0 oklch(0 0 0 / 0.06);
+
+  --radius: 0.625rem;          /* 10px */
+  --radius-sm: calc(var(--radius) - 4px);   /* 6px  */
+  --radius-md: calc(var(--radius) - 2px);   /* 8px  */
+  --radius-lg: var(--radius);               /* 10px */
+  --radius-xl: calc(var(--radius) + 4px);   /* 14px */
+
+  --focus-ring: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+  --ease-emphasis: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Explicit choice wins in both directions; no attribute means follow the system. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --hairline: oklch(1 0 0 / 0.1);
+    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+    --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+    --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
   }
-  :root[data-theme="light"] { color-scheme: light; }
-  :root[data-theme="dark"] { color-scheme: dark; --bg:#0f0e0d; --panel:#171614; --line:#2a2724; --ink:#e8e6e3; --muted:#9a938a; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif; }
-  .shell { display:grid; grid-template-columns:280px 1fr; min-height:100vh; }
-  @media (max-width:900px){ .shell{grid-template-columns:1fr} }
-  .panel { padding:20px; border-right:1px solid var(--line); background:var(--panel); overflow-y:auto; max-height:100vh; }
-  .panel h1 { margin:0 0 2px; font-size:15px; }
-  .panel .sub { margin:0 0 18px; color:var(--muted); font-size:12px; }
-  .group { margin-bottom:18px; }
-  .group > h2 { margin:0 0 8px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); }
-  .row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:3px 0; }
-  .row label { font-size:13px; cursor:pointer; }
-  .row output { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; min-width:34px; text-align:right; }
-  input[type=range]{width:118px;accent-color:var(--accent)}
-  input[type=color]{width:30px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:none;cursor:pointer}
-  input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
-  select{width:150px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px}
-  .seg{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:8px}
-  .seg button{flex:1;padding:4px 6px;border:0;border-radius:5px;background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
-  .seg button[data-on=true]{background:var(--accent);color:#fff}
-  .stage{display:flex;flex-direction:column;gap:22px;padding:26px;min-width:0}
-  .card{padding:20px;border:1px dashed var(--line);border-radius:12px;overflow-x:auto}
-  .card h3{margin:0 0 4px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-  .card p{margin:0 0 14px;color:var(--muted);font-size:12px}
-  pre{margin:0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow-x:auto;font:12px/1.65 ui-monospace,Menlo,monospace;white-space:pre}
-  .shapes{display:flex;flex-wrap:wrap;gap:18px}
-  .shapes figure{margin:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-  .shapes figcaption{color:var(--muted);font-size:11px}
-  .boot{padding:26px;color:var(--muted)}
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --hairline: oklch(1 0 0 / 0.1);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The library takes its label and tooltip colours from CSS vars, so the
+ * component inherits the design system rather than fighting it. The doubled
+ * class matches the specificity of the library's own theme rule
+ * (.heatmap:not([data-heatmap-theme="light"])); this sheet loads later, so the
+ * tie resolves here. */
+.heatmap.heatmap {
+  --heatmap-label: var(--muted-foreground);
+  --heatmap-tooltip-bg: var(--primary);
+  --heatmap-tooltip-text: var(--primary-foreground);
+  --heatmap-tooltip-border: transparent;
+  --heatmap-tooltip-shadow: 0 10px 30px -10px oklch(0 0 0 / 0.35);
+}
+
+/* --- Layout ------------------------------------------------------------- */
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 100vh; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  border-right: 1px solid var(--border);   /* structure, so it stays a border */
+  background: var(--card);
+  max-height: 100vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+}
+@media (max-width: 900px) { .sidebar { position: static; max-height: none; } }
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+  min-width: 0;
+}
+.stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    56% 42% at 62% 0%,
+    color-mix(in oklch, var(--foreground) 5%, transparent),
+    transparent 70%
+  );
+}
+.stage > * { position: relative; z-index: 1; }
+
+/* --- Brand -------------------------------------------------------------- */
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  flex: none;
+  border-radius: var(--radius-lg);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-xs);
+}
+.brand-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted-foreground); }
+
+/* --- Badge -------------------------------------------------------------- */
+.badge {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Groups, labels, separator ------------------------------------------ */
+.group { display: flex; flex-direction: column; gap: 10px; }
+.group-title {
+  margin: 0;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.separator { height: 1px; background: var(--border); border: 0; margin: 0; }
+
+.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field > label { font-size: 13px; cursor: pointer; user-select: none; }
+.field-control { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.field-value {
+  min-width: 38px; text-align: right;
+  font-size: 12px; color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.field-stack { display: flex; flex-direction: column; gap: 8px; }
+
+/* --- Tabs (theme) ------------------------------------------------------- */
+.tabs {
+  display: inline-flex;
+  width: 100%;
+  padding: 3px;                       /* concentric: 10 = 7 + 3 */
+  gap: 2px;
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}
+.tab {
+  flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px;
+  padding-inline: 8px 10px;           /* optical: leading icon side -2px */
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition-property: background-color, color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.tab:hover { color: var(--foreground); }
+.tab:active { scale: 0.96; }
+.tab[data-state="active"] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs);
+}
+.tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* --- Select ------------------------------------------------------------- */
+.select-wrap { position: relative; display: flex; width: 158px; }
+.select {
+  width: 100%; height: 36px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  box-shadow: var(--shadow-xs);
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.select:hover { border-color: var(--ring); }
+.select:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.select-chevron {
+  position: absolute; right: 10px; top: 50%;
+  translate: 0 -50%;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+
+/* --- Slider ------------------------------------------------------------- */
+.slider {
+  width: 132px; height: 16px;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--primary) 0 var(--pct, 50%),
+    var(--muted) var(--pct, 50%) 100%
+  );
+}
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px; height: 16px;
+  margin-top: -5px;                   /* (6 - 16) / 2 */
+  border: 1px solid var(--primary);
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+  transition-property: box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.slider::-moz-range-track { height: 6px; border-radius: 9999px; background: var(--muted); }
+.slider::-moz-range-progress { height: 6px; border-radius: 9999px; background: var(--primary); }
+.slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border: 1px solid var(--primary);
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+}
+.slider:focus-visible { outline: none; }
+.slider:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+.slider:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
+
+/* --- Switch ------------------------------------------------------------- */
+.switch {
+  position: relative;
+  width: 32px; height: 18px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--input);
+  cursor: pointer;
+  transition-property: background-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.switch[data-state="checked"] { background: var(--primary); }
+.switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.switch-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+  transition-property: translate;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.switch[data-state="checked"] .switch-thumb { translate: 14px 0; }
+
+/* --- Colour swatch ------------------------------------------------------ */
+.swatch {
+  display: inline-flex;
+  padding: 3px;                       /* concentric: 8 = 5 + 3 */
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.swatch:hover { border-color: var(--ring); }
+.swatch:focus-within { border-color: var(--ring); box-shadow: var(--focus-ring); }
+.swatch input {
+  width: 28px; height: 20px;
+  padding: 0; border: 0;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+.swatch input::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch input::-webkit-color-swatch {
+  border: 0; border-radius: 5px;
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
+.swatch input::-moz-color-swatch { border: 0; border-radius: 5px; }
+
+/* --- Hex field ---------------------------------------------------------- */
+.hex { display: flex; align-items: center; gap: 6px; }
+.hex-input {
+  width: 96px; height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  box-shadow: var(--shadow-xs);
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.hex-input:hover { border-color: var(--ring); }
+.hex-input:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.hex-input[aria-invalid="true"] { border-color: var(--destructive); }
+.hex-input[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 40%, transparent);
+}
+
+/* --- Ramp preview ------------------------------------------------------- */
+.ramp { display: flex; gap: 3px; }
+.ramp span {
+  flex: 1; height: 18px;
+  border-radius: var(--radius-sm);
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
+
+/* --- Button ------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px;
+  padding-inline: 10px 12px;          /* optical: leading icon side -2px */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition-property: background-color, color, border-color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.btn:hover { background: var(--accent); }
+.btn:active { scale: 0.96; }
+.btn:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.btn-ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--muted-foreground); }
+.btn-ghost:hover { background: var(--accent); color: var(--foreground); }
+
+/* --- Icon cross-fade ---------------------------------------------------- */
+.icon-swap { position: relative; display: inline-flex; }
+.icon-swap > span {
+  display: inline-flex;
+  transition-property: opacity, filter, scale;
+  transition-duration: 300ms;
+  transition-timing-function: var(--ease-emphasis);
+}
+.icon-swap > span.is-overlay { position: absolute; inset: 0; align-items: center; justify-content: center; }
+.icon-swap > span[data-on="true"]  { scale: 1; opacity: 1; filter: blur(0px); }
+.icon-swap > span[data-on="false"] { scale: 0.25; opacity: 0; filter: blur(4px); }
+
+/* --- Card --------------------------------------------------------------- */
+.card {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow: var(--shadow-border);
+  transition-property: box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.card:hover { box-shadow: var(--shadow-border-hover); }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.card-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.card-desc { margin: 4px 0 0; font-size: 13px; color: var(--muted-foreground); }
+.card-body {
+  overflow-x: auto;
+  /* overflow-x:auto computes overflow-y to auto too, which would clip the
+   * tooltip above the top row and the cell's 1.18 hover scale. The negative
+   * margin buys that room back without adding visible space. */
+  margin: -44px -6px -6px;
+  padding: 44px 6px 6px;
+}
+
+/* --- Page header -------------------------------------------------------- */
+.page-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.page-desc { margin: 6px 0 0; font-size: 14px; color: var(--muted-foreground); max-width: 60ch; }
+.install {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 14px;
+  padding: 4px;                       /* concentric: 10 = 6 + 4 */
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}
+.install code {
+  padding: 0 8px;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--foreground);
+}
+.install .btn { height: 26px; border-radius: var(--radius-sm); }
+
+/* --- Code block --------------------------------------------------------- */
+.code {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* --- Shapes gallery ----------------------------------------------------- */
+/* Each shape has a different intrinsic width, so an even grid keeps the tiles
+ * aligned where flex-wrap would leave ragged rows. */
+.shapes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+}
+.shapes figure {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  margin: 0;
+  /* The tile holds no nested surface, so its radius is chosen, not concentric. */
+  padding: 14px;
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  overflow-x: auto;
+  box-shadow: var(--shadow-border);
+  transition-property: box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.shapes figure:hover { box-shadow: var(--shadow-border-hover); }
+.shapes figcaption { font-size: 11px; color: var(--muted-foreground); }
+
+/* --- Staged entrance ---------------------------------------------------- */
+.enter {
+  opacity: 0;
+  transform: translateY(12px);
+  filter: blur(4px);
+  animation: enter 400ms ease-out forwards;
+}
+/* The index is passed in, because nth-child would also count the separators
+ * between groups and break the even 100ms cadence. */
+.enter { animation-delay: calc(var(--enter-index, 0) * 100ms); }
+@keyframes enter {
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.boot { padding: 32px; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .enter { animation: none; opacity: 1; transform: none; filter: none; }
+  .icon-swap > span { transition-duration: 1ms; }
+}
 </style>
 <script type="importmap">
 {"imports":{
@@ -54,9 +550,9 @@
 <body>
 <div id="root"><div class="boot">Loading… (React is fetched from a CDN)</div></div>
 <script type="module">
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Heatmap, CalendarHeatmap } from "../dist/index.js";
+import { Heatmap, CalendarHeatmap, deriveRamp, parseHex } from "../dist/index.js";
 
 const h = React.createElement;
 const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ring"];
@@ -68,13 +564,58 @@ const RAMPS = {
   mono:   ["#d9d5cf","#a8a29a","#6f6a62","#33302c"],
 };
 
+const EMPTY_LIGHT = "#ebedf0";
+const EMPTY_DARK = "#2c2c2e";
+
+// The surface the cells actually sit on, so a derived ramp's palest band fades
+// into the card rather than toward an imagined white. These are the sRGB
+// resolutions of the --card token in each theme.
+const GROUND_LIGHT = "#ffffff";
+const GROUND_DARK = "#171717";
+
+const CUSTOM = "custom";
+const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
+
 const DEFAULTS = {
   shape:"rounded", encode:"color", scale:"quantile",
   cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:"#ebedf0", showLegend:true, showWeekdays:false, theme:"system",
+  ramp:"green", empty:null, showLegend:true, showWeekdays:false, theme:"system",
+  base:"#8b5cf6",
 };
 
-/** Deterministic sample so the page looks the same on every load. */
+/* --- Icons: one 24px lucide grid, currentColor, stroke matched to its label -- */
+const PATHS = {
+  sun: ["M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z","M12 1v2","M12 21v2","M4.2 4.2l1.4 1.4","M18.4 18.4l1.4 1.4","M1 12h2","M21 12h2","M4.2 19.8l1.4-1.4","M18.4 5.6l1.4-1.4"],
+  moon: ["M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"],
+  monitor: ["M3 4h18v12H3z","M8 20h8","M12 16v4"],
+  copy: ["M9 9h10v12H9z","M5 15H3V3h12v2"],
+  check: ["M20 6 9 17l-5-5"],
+  chevron: ["m6 9 6 6 6-6"],
+  reset: ["M3 12a9 9 0 1 0 3-6.7L3 8","M3 3v5h5"],
+};
+
+function Icon({ name, size = 16, stroke = 2 }) {
+  return h("svg", {
+    width: size, height: size, viewBox: "0 0 24 24",
+    fill: "none", stroke: "currentColor", strokeWidth: stroke,
+    strokeLinecap: "round", strokeLinejoin: "round",
+    "aria-hidden": "true", focusable: "false",
+  }, PATHS[name].map((d, i) => h("path", { key: i, d })));
+}
+
+/** The brand mark is the product: a nine-cell grid at three intensities. */
+function BrandMark() {
+  const level = [1, 0.45, 0.75, 0.45, 1, 0.28, 0.75, 0.28, 0.6];
+  return h("svg", { width: 20, height: 20, viewBox: "0 0 20 20", "aria-hidden": "true" },
+    level.map((opacity, i) =>
+      h("rect", {
+        key: i, width: 5, height: 5, rx: 1.6,
+        x: (i % 3) * 7.5, y: Math.floor(i / 3) * 7.5,
+        fill: "currentColor", opacity,
+      })));
+}
+
+/* --- Deterministic sample so the page looks the same on every load --------- */
 function noise(i, salt){ let v=Math.imul(i+salt*0x9e37,0x85ebca6b)^(salt*0xc2b2ae35); v=Math.imul(v^(v>>>13),0xc2b2ae35); v^=v>>>16; return (v>>>0)/0x100000000; }
 
 function calendarDays(weeks){
@@ -109,20 +650,126 @@ function weekdayLabels(stride){
   return names.map((text,column)=>({column,text}));
 }
 
-function Row({label,htmlFor,children}){ return h("div",{className:"row"},h("label",{htmlFor},label),children); }
-function Slider({s,set,name,label,min,max,suffix=""}){ const id="c-"+name;
-  return h(Row,{label,htmlFor:id},h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-    h("input",{id,type:"range",min,max,value:s[name],onChange:e=>set(name,Number(e.target.value))}),
-    h("output",null,s[name]+suffix)));}
-function Toggle({s,set,name,label}){ const id="c-"+name;
-  return h(Row,{label,htmlFor:id},h("input",{id,type:"checkbox",checked:s[name],onChange:e=>set(name,e.target.checked)}));}
-function Select({s,set,name,label,options}){ const id="c-"+name;
-  return h(Row,{label,htmlFor:id},h("select",{id,value:s[name],onChange:e=>set(name,e.target.value)},
-    options.map(o=>h("option",{key:o,value:o},o))));}
-function Seg({value,options,onChange}){ return h("div",{className:"seg"},options.map(o=>
-  h("button",{key:o,type:"button","data-on":value===o?"true":"false",onClick:()=>onChange(o)},o)));}
+/* --- Primitives ----------------------------------------------------------- */
+function Field({label,htmlFor,children}){
+  return h("div",{className:"field"},h("label",{htmlFor},label),children);
+}
 
-function snippet(s){
+function Slider({s,set,name,label,min,max,suffix=""}){
+  const id="c-"+name;
+  const pct=((s[name]-min)/(max-min))*100+"%";
+  return h(Field,{label,htmlFor:id},
+    h("div",{className:"field-control"},
+      h("input",{id,className:"slider",type:"range",min,max,value:s[name],
+        style:{"--pct":pct},onChange:e=>set(name,Number(e.target.value))}),
+      h("output",{className:"field-value",htmlFor:id},s[name]+suffix)));
+}
+
+function Switch({s,set,name,label}){
+  const id="c-"+name;
+  const on=s[name];
+  return h(Field,{label,htmlFor:id},
+    h("button",{id,type:"button",className:"switch",role:"switch",
+      "aria-checked":on,"aria-label":label,"data-state":on?"checked":"unchecked",
+      onClick:()=>set(name,!on)},
+      h("span",{className:"switch-thumb"})));
+}
+
+function Select({s,set,name,label,options}){
+  const id="c-"+name;
+  return h(Field,{label,htmlFor:id},
+    h("div",{className:"select-wrap"},
+      h("select",{id,className:"select",value:s[name],
+        onChange:e=>set(name,e.target.value)},
+        options.map(o=>h("option",{key:o,value:o},o))),
+      h("span",{className:"select-chevron"},h(Icon,{name:"chevron",size:15,stroke:1.5}))));
+}
+
+const toHex=({r,g,b})=>"#"+[r,g,b].map(c=>Math.round(c).toString(16).padStart(2,"0")).join("");
+
+/**
+ * A preset is a fixed ladder of stops, so a level count it was not written for
+ * has to be read off the ladder rather than invented. Walking the existing
+ * stops keeps each preset's character at any count, and returns the original
+ * array untouched at its natural length — so crossing that point on the slider
+ * produces no jump. Channel-wise like the library's own mix, for consistency
+ * with a derived ramp.
+ */
+function resampleRamp(stops,levels){
+  if(levels===stops.length) return stops;
+  if(levels<=1) return [stops[stops.length-1]];
+  const rgb=stops.map(parseHex);
+  return Array.from({length:levels},(_,i)=>{
+    const position=(i/(levels-1))*(stops.length-1);
+    const lower=Math.min(stops.length-2,Math.floor(position));
+    const weight=position-lower;
+    const from=rgb[lower], to=rgb[lower+1];
+    return toHex({
+      r:from.r+(to.r-from.r)*weight,
+      g:from.g+(to.g-from.g)*weight,
+      b:from.b+(to.b-from.b)*weight,
+    });
+  });
+}
+/** Everything parseHex accepts: #abc, abc, #AABBCC, any case, stray spaces. */
+const normalizeHex=v=>{ const rgb=parseHex(v); return rgb?toHex(rgb):null; };
+
+/**
+ * Text and picker over one value. The draft is held separately so a half-typed
+ * hex never reaches the grid, and the last valid colour stays on screen.
+ */
+function HexField({value,onChange}){
+  const [draft,setDraft]=useState(value);
+  // Re-sync when the value changes from elsewhere: the picker, or Reset.
+  useEffect(()=>{setDraft(value);},[value]);
+  const valid=parseHex(draft)!==null;
+  return h("div",{className:"hex"},
+    h("span",{className:"swatch"},
+      h("input",{type:"color",value,"aria-label":"Base colour",
+        onChange:e=>onChange(e.target.value)})),
+    h("input",{className:"hex-input",type:"text",value:draft,spellCheck:false,
+      "aria-label":"Base colour hex","aria-invalid":valid?undefined:"true",
+      onChange:e=>{
+        const next=e.target.value;
+        setDraft(next);
+        const normalized=normalizeHex(next);
+        if(normalized) onChange(normalized);
+      },
+      // An unparseable draft is abandoned on blur rather than left dangling.
+      onBlur:()=>setDraft(value)}));
+}
+
+function Tabs({value,options,onChange,label}){
+  return h("div",{className:"tabs",role:"tablist","aria-label":label},
+    options.map(o=>
+      h("button",{key:o.value,type:"button",className:"tab",role:"tab",
+        "aria-selected":value===o.value,"data-state":value===o.value?"active":"inactive",
+        onClick:()=>onChange(o.value)},
+        h(Icon,{name:o.icon,size:14,stroke:2}), o.label)));
+}
+
+/** Both icons stay mounted and cross-fade, so enter and exit both animate. */
+function CopyButton({text,label="Copy",className="btn"}){
+  const [copied,setCopied]=useState(false);
+  const timer=useRef(null);
+  useEffect(()=>()=>{ if(timer.current) clearTimeout(timer.current); },[]);
+  const copy=async()=>{
+    try { await navigator.clipboard.writeText(text); } catch { return; }
+    setCopied(true);
+    if(timer.current) clearTimeout(timer.current);
+    timer.current=setTimeout(()=>setCopied(false),2000);
+  };
+  return h("button",{type:"button",className,onClick:copy,
+    "aria-label":copied?"Copied":label},
+    h("span",{className:"icon-swap"},
+      h("span",{className:"is-overlay","data-on":String(copied)},h(Icon,{name:"check",stroke:2})),
+      h("span",{"data-on":String(!copied)},h(Icon,{name:"copy",stroke:2}))),
+    // A label, not only motion, reports the state change.
+    copied?"Copied":label);
+}
+
+/* --- Code sample ---------------------------------------------------------- */
+function snippet(s,empty,ground,colors){
   const p=[];
   if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
   if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
@@ -130,76 +777,200 @@ function snippet(s){
   if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
   if(s.gap!==3)p.push(`  gap={${s.gap}}`);
   if(s.levels!==4)p.push(`  levels={${s.levels}}`);
-  if(s.ramp!=="green")p.push(`  colors={${JSON.stringify(RAMPS[s.ramp])}}`);
+  if(s.ramp===CUSTOM){
+    // deriveRamp defaults ground to white, so it only needs naming on a dark
+    // surface — without it the copied code would not reproduce what is shown.
+    const opts=`{ levels: ${s.levels}`+(ground===GROUND_LIGHT?"":`, ground: "${ground}"`)+" }";
+    p.push(`  colors={deriveRamp("${s.base}", ${opts})}`);
+  }
+  // The component's own default is the green preset at its natural length, so
+  // that is the only case where the colours can go unstated.
+  else if(s.ramp!=="green"||s.levels!==RAMPS.green.length){
+    p.push(`  colors={${JSON.stringify(colors)}}`);
+  }
+  if(empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
   if(s.showLegend)p.push("  showLegend");
   if(s.showWeekdays)p.push("  showWeekdayLabels");
   return `<CalendarHeatmap\n  values={days}\n  weeks={${s.weeks}}\n${p.join("\n")}${p.length?"\n":""}/>`;
 }
 
+/** Tracks the OS setting so "system" can resolve to a concrete palette. */
+function useSystemDark(){
+  const [dark,setDark]=useState(()=>window.matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(()=>{
+    const mql=window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange=e=>setDark(e.matches);
+    mql.addEventListener("change",onChange);
+    return ()=>mql.removeEventListener("change",onChange);
+  },[]);
+  return dark;
+}
+
+/**
+ * A theme flip repaints colour, background, border and shadow at once. Every
+ * transition on those properties would fire together and smear the switch, so
+ * they are suppressed for exactly one frame around the change.
+ */
+function suppressTransitions(){
+  const style=document.createElement("style");
+  style.append(document.createTextNode("*,*::before,*::after{transition:none !important}"));
+  document.head.append(style);
+  // Read for the side effect: forces the new colours to commit while the
+  // override still applies, so no transition ever starts.
+  const _flushReflow=document.body.offsetHeight;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>style.remove()));
+}
+
+/** Entrance props: the index drives an even 100ms cadence between groups. */
+const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
+
 function App(){
   const [s,setS]=useState(DEFAULTS);
   const set=(k,v)=>setS(p=>({...p,[k]:v}));
   const days=useMemo(()=>calendarDays(s.weeks),[s.weeks]);
-  const colors=RAMPS[s.ramp];
-  const common={shape:s.shape,encode:s.encode,scale:s.scale,cellSize:s.cellSize,gap:s.gap,levels:s.levels,colors,emptyColor:s.empty};
+  const systemDark=useSystemDark();
   const themeAttr=s.theme==="system"?undefined:s.theme;
-  // The same choice has to reach the page chrome, not just the components.
+  const isDark=themeAttr?themeAttr==="dark":systemDark;
+
+  // A derived ramp is tied to the surface behind it and to the level count, so
+  // it stays legible on either ground and never runs short of bands.
+  const ground=isDark?GROUND_DARK:GROUND_LIGHT;
+  const colors=useMemo(
+    ()=>s.ramp===CUSTOM
+      ?deriveRamp(s.base,{levels:s.levels,ground})
+      :resampleRamp(RAMPS[s.ramp],s.levels),
+    [s.ramp,s.base,s.levels,ground]);
+
+  // Until the colour is chosen explicitly, the empty cell follows the theme —
+  // a light grey on a dark ground reads as data, not as absence.
+  const empty=s.empty??(isDark?EMPTY_DARK:EMPTY_LIGHT);
+
+  // The theme choice has to reach the page chrome, not just the components.
   useEffect(()=>{
     const el=document.documentElement;
+    suppressTransitions();
     if(themeAttr) el.setAttribute("data-theme",themeAttr); else el.removeAttribute("data-theme");
   },[themeAttr]);
+  useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
+
+  const common={shape:s.shape,encode:s.encode,scale:s.scale,cellSize:s.cellSize,
+    gap:s.gap,levels:s.levels,colors,emptyColor:empty};
 
   return h("div",{className:"shell"},
-    h("aside",{className:"panel"},
-      h("h1",null,"heatmap-ui"),
-      h("p",{className:"sub"},"Any grid. Honest gaps. Quantile shading."),
-      h("div",{className:"group"},h("h2",null,"Theme"),
-        h(Seg,{value:s.theme,options:["system","light","dark"],onChange:v=>set("theme",v)})),
-      h("div",{className:"group"},h("h2",null,"Cells"),
+    h("aside",{className:"sidebar"},
+      h("div",enter(0),
+        h("div",{className:"brand"},
+          h("div",{className:"brand-mark"},h(BrandMark)),
+          h("div",null,
+            h("div",{className:"brand-name"},"heatmap-ui"),
+            h("p",{className:"brand-sub"},"Any grid. Honest gaps.")),
+          h("span",{className:"badge",style:{marginLeft:"auto"}},"v0.1.0"))),
+
+      h("div",{...enter(1),className:"group enter"},
+        h("h2",{className:"group-title"},"Theme"),
+        h(Tabs,{value:s.theme,label:"Theme",onChange:v=>set("theme",v),options:[
+          {value:"system",label:"System",icon:"monitor"},
+          {value:"light",label:"Light",icon:"sun"},
+          {value:"dark",label:"Dark",icon:"moon"}]})),
+
+      h("hr",{className:"separator"}),
+
+      h("div",{...enter(2),className:"group enter"},
+        h("h2",{className:"group-title"},"Cells"),
         h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES}),
         h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
         h(Slider,{s,set,name:"cellSize",label:"Size",min:6,max:30,suffix:"px"}),
         h(Slider,{s,set,name:"gap",label:"Gap",min:0,max:10,suffix:"px"})),
-      h("div",{className:"group"},h("h2",null,"Scale"),
+
+      h("hr",{className:"separator"}),
+
+      h("div",{...enter(3),className:"group enter"},
+        h("h2",{className:"group-title"},"Scale"),
         h(Select,{s,set,name:"scale",label:"Scale",options:["quantile","linear","log"]}),
         h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8}),
         h(Slider,{s,set,name:"weeks",label:"Weeks",min:4,max:53})),
-      h("div",{className:"group"},h("h2",null,"Colour"),
-        h(Select,{s,set,name:"ramp",label:"Ramp",options:Object.keys(RAMPS)}),
-        h(Row,{label:"Empty",htmlFor:"c-empty"},
-          h("input",{id:"c-empty",type:"color",value:s.empty,onChange:e=>set("empty",e.target.value)}))),
-      h("div",{className:"group"},h("h2",null,"Labels"),
-        h(Toggle,{s,set,name:"showLegend",label:"Legend"}),
-        h(Toggle,{s,set,name:"showWeekdays",label:"Weekday labels"}))),
+
+      h("hr",{className:"separator"}),
+
+      h("div",{...enter(4),className:"group enter"},
+        h("h2",{className:"group-title"},"Colour"),
+        h("div",{className:"field-stack"},
+          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES}),
+          s.ramp===CUSTOM?h(Field,{label:"Base",htmlFor:"c-base"},
+            h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
+          h("div",{className:"ramp","aria-hidden":"true"},
+            [empty,...colors].map((c,i)=>h("span",{key:i,style:{background:c}})))),
+        h(Field,{label:"Empty",htmlFor:"c-empty"},
+          h("span",{className:"swatch"},
+            h("input",{id:"c-empty",type:"color",value:empty,
+              onChange:e=>set("empty",e.target.value)})))),
+
+      h("hr",{className:"separator"}),
+
+      h("div",{...enter(5),className:"group enter"},
+        h("h2",{className:"group-title"},"Labels"),
+        h(Switch,{s,set,name:"showLegend",label:"Legend"}),
+        h(Switch,{s,set,name:"showWeekdays",label:"Weekday labels"})),
+
+      h("div",enter(6,{marginTop:"auto",paddingTop:"8px"}),
+        h("button",{type:"button",className:"btn btn-ghost",
+          onClick:()=>setS(p=>({...DEFAULTS,theme:p.theme}))},
+          h(Icon,{name:"reset",stroke:2}),"Reset controls"))),
 
     h("main",{className:"stage"},
-      h("section",{className:"card"},
-        h("h3",null,"Calendar"),
-        h("p",null,"The adapter. Note the pale band — that is a gap in the data, drawn differently from a zero."),
-        h(CalendarHeatmap,{values:days,weeks:s.weeks,unitLabel:"events",showLegend:s.showLegend,
-          showWeekdayLabels:s.showWeekdays,"data-heatmap-theme":themeAttr,
-          tooltip:c=>c.known?`${c.date}: ${c.value} events`:`${c.date}: no data`,...common})),
+      h("header",enter(0),
+        h("h1",{className:"page-title"},"Playground"),
+        h("p",{className:"page-desc"},
+          "A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps. Every control writes straight into the props below."),
+        h("div",{className:"install"},
+          h("code",null,"npm i @tb962/heatmap-ui"),
+          h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
 
-      h("section",{className:"card"},
-        h("h3",null,"Punchcard — 24 × 7"),
-        h("p",null,"The same core with no dates involved: hours down, weekdays across."),
-        h(Heatmap,{rows:24,columns:7,values:punchcard,ariaLabel:"Commits by hour and weekday",
-          rowLabels:Array.from({length:24},(_,i)=>i%6===0?`${i}:00`:""),
-          columnLabels:weekdayLabels(s.cellSize+s.gap),
-          cellLabel:c=>`${c.row}:00 on day ${c.column}: ${c.value}`,
-          tooltip:c=>`${String(c.row).padStart(2,"0")}:00 — ${c.value}`,
-          "data-heatmap-theme":themeAttr,...common})),
+      h("section",{...enter(1),className:"card enter"},
+        h("div",{className:"card-head"},
+          h("div",null,
+            h("h2",{className:"card-title"},"Calendar"),
+            h("p",{className:"card-desc"},"The adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.")),
+          h("span",{className:"badge"},s.weeks+" weeks")),
+        h("div",{className:"card-body"},
+          h(CalendarHeatmap,{values:days,weeks:s.weeks,unitLabel:"events",showLegend:s.showLegend,
+            showWeekdayLabels:s.showWeekdays,"data-heatmap-theme":themeAttr,
+            tooltip:c=>c.known?`${c.date}: ${c.value} events`:`${c.date}: no data`,...common}))),
 
-      h("section",{className:"card"},
-        h("h3",null,"Every shape"),
-        h("p",null,"Same data, same scale."),
-        h("div",{className:"shapes"},SHAPES.map(shape=>
-          h("figure",{key:shape},
-            h(Heatmap,{rows:7,columns:10,values:days.slice(-70).map((d,i)=>({row:i%7,column:Math.floor(i/7),value:d.value,known:d.known!==false})),
-              ...common,shape,cellSize:14,"data-heatmap-theme":themeAttr}),
-            h("figcaption",null,shape))))),
+      h("section",{...enter(2),className:"card enter"},
+        h("div",{className:"card-head"},
+          h("div",null,
+            h("h2",{className:"card-title"},"Punchcard"),
+            h("p",{className:"card-desc"},"The same core with no dates involved: hours down, weekdays across.")),
+          h("span",{className:"badge"},"24 × 7")),
+        h("div",{className:"card-body"},
+          h(Heatmap,{rows:24,columns:7,values:punchcard,ariaLabel:"Commits by hour and weekday",
+            rowLabels:Array.from({length:24},(_,i)=>i%6===0?`${i}:00`:""),
+            columnLabels:weekdayLabels(s.cellSize+s.gap),
+            cellLabel:c=>`${c.row}:00 on day ${c.column}: ${c.value}`,
+            tooltip:c=>`${String(c.row).padStart(2,"0")}:00 — ${c.value}`,
+            "data-heatmap-theme":themeAttr,...common}))),
 
-      h("pre",null,snippet(s))));
+      h("section",{...enter(3),className:"card enter"},
+        h("div",{className:"card-head"},
+          h("div",null,
+            h("h2",{className:"card-title"},"Every shape"),
+            h("p",{className:"card-desc"},"Same data, same scale — geometry is a prop.")),
+          h("span",{className:"badge"},SHAPES.length+" shapes")),
+        h("div",{className:"card-body"},
+          h("div",{className:"shapes"},SHAPES.map(shape=>
+            h("figure",{key:shape},
+              h(Heatmap,{rows:7,columns:10,
+                values:days.slice(-70).map((d,i)=>({row:i%7,column:Math.floor(i/7),value:d.value,known:d.known!==false})),
+                ...common,shape,cellSize:14,"data-heatmap-theme":themeAttr}),
+              h("figcaption",null,shape)))))),
+
+      h("section",{...enter(4),className:"card enter"},
+        h("div",{className:"card-head"},
+          h("div",null,
+            h("h2",{className:"card-title"},"Your settings, as code")),
+          h(CopyButton,{text:snippet(s,empty,ground,colors)})),
+        h("pre",{className:"code"},snippet(s,empty,ground,colors)))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 </script>
