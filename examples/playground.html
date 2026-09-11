@@ -185,6 +185,7 @@ body {
 /* --- Badge -------------------------------------------------------------- */
 .badge {
   display: inline-flex; align-items: center;
+  flex: none; white-space: nowrap;   /* a dimension must never wrap mid-value */
   height: 20px; padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: 9999px;
@@ -579,8 +580,18 @@ const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
 const DEFAULTS = {
   shape:"rounded", encode:"color", scale:"quantile",
   cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:null, showLegend:true, showWeekdays:false, theme:"system",
-  base:"#8b5cf6",
+  ramp:"green", empty:null, showLegend:true, theme:"system", base:"#8b5cf6",
+  graph:"calendar",
+  // Calendar
+  weeks:20, weekStart:"Sunday", showMonths:true, showWeekdays:false,
+  // Punchcard
+  showHours:true, showDays:true,
+  // Cohort retention
+  cohorts:10, horizon:12,
+  // Co-occurrence
+  items:8, hideDiagonal:true,
+  // Uptime
+  services:10, days:30,
 };
 
 /* --- Icons: one 24px lucide grid, currentColor, stroke matched to its label -- */
@@ -650,6 +661,64 @@ function weekdayLabels(stride){
   return names.map((text,column)=>({column,text}));
 }
 
+/**
+ * Keep only as many labels as the column stride can hold. Heatmap positions the
+ * text it is given and cannot measure it, so thinning is the caller's job —
+ * the same principle as picking a shorter weekday form.
+ */
+function thinLabels(texts,stride){
+  const widest=Math.max(...texts.map(t=>t.length))*6+8;   // ~6px per char at 10px
+  const step=Math.max(1,Math.ceil(widest/stride));
+  return texts.map((text,column)=>({column,text})).filter((_,i)=>i%step===0);
+}
+
+const MONTH_ABBR=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const END=Date.UTC(2026,8,7);
+const dayLabel=ms=>{const d=new Date(ms);return MONTH_ABBR[d.getUTCMonth()]+" "+d.getUTCDate();};
+
+const SERVICES=["api","web","auth","search","billing","mailer","worker","cdn","metrics","backup","gateway","docs"];
+const TOPICS=["auth","api","db","ui","cache","queue","cron","mail","logs","cdn","tests","docs"];
+
+/** Retention by cohort: newer cohorts simply have fewer weeks of history. */
+function cohortValues(cohorts,horizon){
+  const out=[];
+  for(let row=0;row<cohorts;row++){
+    const matured=cohorts-row;
+    for(let column=0;column<Math.min(horizon,matured);column++){
+      const decay=Math.exp(-column/6);
+      const jitter=0.85+noise(row*32+column,5)*0.3;
+      out.push({row,column,value:Math.round(100*decay*jitter)});
+    }
+  }
+  return out;
+}
+const cohortHidden=(cohorts,horizon)=>(row,column)=>column>=Math.min(horizon,cohorts-row);
+
+/** Co-occurrence is symmetric, so the pair is sorted before it is seeded. */
+function matrixValues(items,hideDiagonal){
+  const out=[];
+  for(let row=0;row<items;row++) for(let column=0;column<items;column++){
+    if(hideDiagonal&&row===column) continue;
+    const lo=Math.min(row,column), hi=Math.max(row,column);
+    out.push({row,column,value:Math.round(noise(lo*17+hi,7)*100)});
+  }
+  return out;
+}
+
+/** Uptime sits high with occasional dips; one service was onboarded late. */
+function uptimeValues(services,days){
+  const out=[];
+  for(let row=0;row<services;row++) for(let column=0;column<days;column++){
+    if(row===2&&column<Math.floor(days*0.35)){
+      out.push({row,column,value:0,known:false});
+      continue;
+    }
+    const roll=noise(row*64+column,9);
+    out.push({row,column,value:roll<0.1?Math.round(roll*400):Math.round(96+roll*4)});
+  }
+  return out;
+}
+
 /* --- Primitives ----------------------------------------------------------- */
 function Field({label,htmlFor,children}){
   return h("div",{className:"field"},h("label",{htmlFor},label),children);
@@ -675,13 +744,13 @@ function Switch({s,set,name,label}){
       h("span",{className:"switch-thumb"})));
 }
 
-function Select({s,set,name,label,options}){
+function Select({s,set,name,label,options,format}){
   const id="c-"+name;
   return h(Field,{label,htmlFor:id},
     h("div",{className:"select-wrap"},
       h("select",{id,className:"select",value:s[name],
         onChange:e=>set(name,e.target.value)},
-        options.map(o=>h("option",{key:o,value:o},o))),
+        options.map(o=>h("option",{key:o,value:o},format?format(o):o))),
       h("span",{className:"select-chevron"},h(Icon,{name:"chevron",size:15,stroke:1.5}))));
 }
 
@@ -770,7 +839,8 @@ function CopyButton({text,label="Copy",className="btn"}){
 
 /* --- Code sample ---------------------------------------------------------- */
 function snippet(s,empty,ground,colors){
-  const p=[];
+  const { tag, lines } = GRAPHS[s.graph].code(s);
+  const p=[...lines];
   if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
   if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
   if(s.scale!=="quantile")p.push(`  scale="${s.scale}"`);
@@ -790,8 +860,7 @@ function snippet(s,empty,ground,colors){
   }
   if(empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
   if(s.showLegend)p.push("  showLegend");
-  if(s.showWeekdays)p.push("  showWeekdayLabels");
-  return `<CalendarHeatmap\n  values={days}\n  weeks={${s.weeks}}\n${p.join("\n")}${p.length?"\n":""}/>`;
+  return `<${tag}\n${p.join("\n")}\n/>`;
 }
 
 /** Tracks the OS setting so "system" can resolve to a concrete palette. */
@@ -820,6 +889,139 @@ function suppressTransitions(){
   const _flushReflow=document.body.offsetHeight;
   requestAnimationFrame(()=>requestAnimationFrame(()=>style.remove()));
 }
+
+/* --- Graph registry --------------------------------------------------------
+ * Each entry owns its data, its labels, the controls that only make sense for
+ * it, and the code it would take to write by hand. Everything else — shape,
+ * scale, colour, legend — is shared across all of them.
+ */
+const WEEK_START = { Sunday: 0, Monday: 1 };
+
+const GRAPHS = {
+  calendar: {
+    label: "Calendar",
+    description: "The date adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.",
+    badge: s => s.weeks + " weeks",
+    controls: (s, set) => [
+      h(Slider, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: 53 }),
+      h(Select, { key: "start", s, set, name: "weekStart", label: "Week starts", options: Object.keys(WEEK_START) }),
+      h(Switch, { key: "months", s, set, name: "showMonths", label: "Month labels" }),
+      h(Switch, { key: "days", s, set, name: "showWeekdays", label: "Weekday labels" }),
+    ],
+    view: ({ s, common, themeAttr, days }) => h(CalendarHeatmap, {
+      values: days, weeks: s.weeks, unitLabel: "events",
+      weekStart: WEEK_START[s.weekStart],
+      showMonthLabels: s.showMonths, showWeekdayLabels: s.showWeekdays,
+      "data-heatmap-theme": themeAttr,
+      tooltip: c => c.known ? `${c.date}: ${c.value} events` : `${c.date}: no data`,
+      ...common,
+    }),
+    code: s => {
+      const lines = ["  values={days}", `  weeks={${s.weeks}}`];
+      if (s.weekStart !== "Sunday") lines.push(`  weekStart={${WEEK_START[s.weekStart]}}`);
+      if (!s.showMonths) lines.push("  showMonthLabels={false}");
+      if (s.showWeekdays) lines.push("  showWeekdayLabels");
+      return { tag: "CalendarHeatmap", lines };
+    },
+  },
+
+  punchcard: {
+    label: "Punchcard",
+    description: "The same core with no dates involved: hours down, weekdays across.",
+    badge: () => "24 × 7",
+    controls: (s, set) => [
+      h(Switch, { key: "hours", s, set, name: "showHours", label: "Hour labels" }),
+      h(Switch, { key: "days", s, set, name: "showDays", label: "Weekday labels" }),
+    ],
+    view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
+      rows: 24, columns: 7, values: punchcard, ariaLabel: "Commits by hour and weekday",
+      rowLabels: s.showHours ? Array.from({ length: 24 }, (_, i) => i % 6 === 0 ? `${i}:00` : "") : undefined,
+      columnLabels: s.showDays ? weekdayLabels(stride) : undefined,
+      cellLabel: c => `${c.row}:00 on day ${c.column}: ${c.value}`,
+      tooltip: c => `${String(c.row).padStart(2, "0")}:00 — ${c.value}`,
+      "data-heatmap-theme": themeAttr, ...common,
+    }),
+    code: () => ({ tag: "Heatmap", lines: ["  rows={24}", "  columns={7}", "  values={commits}"] }),
+  },
+
+  cohort: {
+    label: "Cohort retention",
+    description: "Rows are cohorts, columns are weeks since signup. A newer cohort has no history yet, so those slots are not drawn at all.",
+    badge: s => s.cohorts + " × " + s.horizon,
+    controls: (s, set) => [
+      h(Slider, { key: "c", s, set, name: "cohorts", label: "Cohorts", min: 4, max: 16 }),
+      h(Slider, { key: "h", s, set, name: "horizon", label: "Horizon", min: 4, max: 16, suffix: "w" }),
+    ],
+    view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
+      rows: s.cohorts, columns: s.horizon,
+      values: cohortValues(s.cohorts, s.horizon),
+      isSlotHidden: cohortHidden(s.cohorts, s.horizon),
+      ariaLabel: "Retention by signup cohort",
+      rowLabels: Array.from({ length: s.cohorts }, (_, row) =>
+        dayLabel(END - (s.cohorts - 1 - row) * 7 * 86400000)),
+      columnLabels: thinLabels(Array.from({ length: s.horizon }, (_, i) => "W" + i), stride),
+      cellLabel: c => `Week ${c.column}: ${c.value}% retained`,
+      tooltip: c => `Week ${c.column} — ${c.value}% retained`,
+      "data-heatmap-theme": themeAttr, ...common,
+    }),
+    code: s => ({ tag: "Heatmap", lines: [
+      `  rows={${s.cohorts}}`, `  columns={${s.horizon}}`, "  values={retention}",
+      `  isSlotHidden={(row, column) => column >= ${s.cohorts} - row}`,
+    ] }),
+  },
+
+  matrix: {
+    label: "Co-occurrence",
+    description: "A symmetric grid over the same labels on both axes. The diagonal is hidden rather than filled with a meaningless self-match.",
+    badge: s => s.items + " × " + s.items,
+    controls: (s, set) => [
+      h(Slider, { key: "i", s, set, name: "items", label: "Items", min: 4, max: 12 }),
+      h(Switch, { key: "d", s, set, name: "hideDiagonal", label: "Hide diagonal" }),
+    ],
+    view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
+      rows: s.items, columns: s.items,
+      values: matrixValues(s.items, s.hideDiagonal),
+      isSlotHidden: s.hideDiagonal ? (row, column) => row === column : undefined,
+      ariaLabel: "Label co-occurrence",
+      rowLabels: TOPICS.slice(0, s.items),
+      columnLabels: thinLabels(TOPICS.slice(0, s.items), stride),
+      cellLabel: c => `${TOPICS[c.row]} with ${TOPICS[c.column]}: ${c.value}`,
+      tooltip: c => `${TOPICS[c.row]} × ${TOPICS[c.column]} — ${c.value}`,
+      "data-heatmap-theme": themeAttr, ...common,
+    }),
+    code: s => {
+      const lines = [`  rows={${s.items}}`, `  columns={${s.items}}`, "  values={overlap}"];
+      if (s.hideDiagonal) lines.push("  isSlotHidden={(row, column) => row === column}");
+      return { tag: "Heatmap", lines };
+    },
+  },
+
+  uptime: {
+    label: "Uptime",
+    description: "Services down, days across. One service was onboarded late, so its early days are absent rather than zero.",
+    badge: s => s.services + " × " + s.days,
+    controls: (s, set) => [
+      h(Slider, { key: "s", s, set, name: "services", label: "Services", min: 4, max: 12 }),
+      h(Slider, { key: "d", s, set, name: "days", label: "Days", min: 7, max: 60 }),
+    ],
+    view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
+      rows: s.services, columns: s.days,
+      values: uptimeValues(s.services, s.days),
+      ariaLabel: "Service uptime by day",
+      rowLabels: SERVICES.slice(0, s.services),
+      columnLabels: thinLabels(
+        Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)), stride),
+      cellLabel: c => `${SERVICES[c.row]}: ${c.known ? c.value + "% up" : "not monitored"}`,
+      tooltip: c => c.known ? `${SERVICES[c.row]} — ${c.value}% up` : `${SERVICES[c.row]} — not monitored`,
+      "data-heatmap-theme": themeAttr, ...common,
+    }),
+    code: s => ({ tag: "Heatmap", lines: [
+      `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
+    ] }),
+  },
+};
+const GRAPH_NAMES = Object.keys(GRAPHS);
+const GRAPH_LABELS = GRAPH_NAMES.map(k => GRAPHS[k].label);
 
 /** Entrance props: the index drives an even 100ms cadence between groups. */
 const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
@@ -854,7 +1056,11 @@ function App(){
   useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
 
   const common={shape:s.shape,encode:s.encode,scale:s.scale,cellSize:s.cellSize,
-    gap:s.gap,levels:s.levels,colors,emptyColor:empty};
+    gap:s.gap,levels:s.levels,colors,emptyColor:empty,showLegend:s.showLegend};
+
+  const graph=GRAPHS[s.graph];
+  const stride=s.cellSize+s.gap;
+  const ctx={s,common,themeAttr,days,stride};
 
   return h("div",{className:"shell"},
     h("aside",{className:"sidebar"},
@@ -876,6 +1082,14 @@ function App(){
       h("hr",{className:"separator"}),
 
       h("div",{...enter(2),className:"group enter"},
+        h("h2",{className:"group-title"},"Graph"),
+        h(Select,{s,set,name:"graph",label:"Type",options:GRAPH_NAMES,
+          format:k=>GRAPHS[k].label}),
+        ...graph.controls(s,set)),
+
+      h("hr",{className:"separator"}),
+
+      h("div",{...enter(3),className:"group enter"},
         h("h2",{className:"group-title"},"Cells"),
         h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES}),
         h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
@@ -884,15 +1098,14 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(3),className:"group enter"},
+      h("div",{...enter(4),className:"group enter"},
         h("h2",{className:"group-title"},"Scale"),
         h(Select,{s,set,name:"scale",label:"Scale",options:["quantile","linear","log"]}),
-        h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8}),
-        h(Slider,{s,set,name:"weeks",label:"Weeks",min:4,max:53})),
+        h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8})),
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(4),className:"group enter"},
+      h("div",{...enter(5),className:"group enter"},
         h("h2",{className:"group-title"},"Colour"),
         h("div",{className:"field-stack"},
           h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES}),
@@ -907,12 +1120,11 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(5),className:"group enter"},
+      h("div",{...enter(6),className:"group enter"},
         h("h2",{className:"group-title"},"Labels"),
-        h(Switch,{s,set,name:"showLegend",label:"Legend"}),
-        h(Switch,{s,set,name:"showWeekdays",label:"Weekday labels"})),
+        h(Switch,{s,set,name:"showLegend",label:"Legend"})),
 
-      h("div",enter(6,{marginTop:"auto",paddingTop:"8px"}),
+      h("div",enter(7,{marginTop:"auto",paddingTop:"8px"}),
         h("button",{type:"button",className:"btn btn-ghost",
           onClick:()=>setS(p=>({...DEFAULTS,theme:p.theme}))},
           h(Icon,{name:"reset",stroke:2}),"Reset controls"))),
@@ -929,29 +1141,12 @@ function App(){
       h("section",{...enter(1),className:"card enter"},
         h("div",{className:"card-head"},
           h("div",null,
-            h("h2",{className:"card-title"},"Calendar"),
-            h("p",{className:"card-desc"},"The adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.")),
-          h("span",{className:"badge"},s.weeks+" weeks")),
-        h("div",{className:"card-body"},
-          h(CalendarHeatmap,{values:days,weeks:s.weeks,unitLabel:"events",showLegend:s.showLegend,
-            showWeekdayLabels:s.showWeekdays,"data-heatmap-theme":themeAttr,
-            tooltip:c=>c.known?`${c.date}: ${c.value} events`:`${c.date}: no data`,...common}))),
+            h("h2",{className:"card-title"},graph.label),
+            h("p",{className:"card-desc"},graph.description)),
+          h("span",{className:"badge"},graph.badge(s))),
+        h("div",{className:"card-body"},graph.view(ctx))),
 
       h("section",{...enter(2),className:"card enter"},
-        h("div",{className:"card-head"},
-          h("div",null,
-            h("h2",{className:"card-title"},"Punchcard"),
-            h("p",{className:"card-desc"},"The same core with no dates involved: hours down, weekdays across.")),
-          h("span",{className:"badge"},"24 × 7")),
-        h("div",{className:"card-body"},
-          h(Heatmap,{rows:24,columns:7,values:punchcard,ariaLabel:"Commits by hour and weekday",
-            rowLabels:Array.from({length:24},(_,i)=>i%6===0?`${i}:00`:""),
-            columnLabels:weekdayLabels(s.cellSize+s.gap),
-            cellLabel:c=>`${c.row}:00 on day ${c.column}: ${c.value}`,
-            tooltip:c=>`${String(c.row).padStart(2,"0")}:00 — ${c.value}`,
-            "data-heatmap-theme":themeAttr,...common}))),
-
-      h("section",{...enter(3),className:"card enter"},
         h("div",{className:"card-head"},
           h("div",null,
             h("h2",{className:"card-title"},"Every shape"),
@@ -962,10 +1157,10 @@ function App(){
             h("figure",{key:shape},
               h(Heatmap,{rows:7,columns:10,
                 values:days.slice(-70).map((d,i)=>({row:i%7,column:Math.floor(i/7),value:d.value,known:d.known!==false})),
-                ...common,shape,cellSize:14,"data-heatmap-theme":themeAttr}),
+                ...common,shape,cellSize:14,showLegend:false,"data-heatmap-theme":themeAttr}),
               h("figcaption",null,shape)))))),
 
-      h("section",{...enter(4),className:"card enter"},
+      h("section",{...enter(3),className:"card enter"},
         h("div",{className:"card-head"},
           h("div",null,
             h("h2",{className:"card-title"},"Your settings, as code")),
