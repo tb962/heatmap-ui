@@ -93,6 +93,18 @@ export function CalendarHeatmap({
     let previousMonth = -1;
 
     for (let column = 0; column < weeks; column += 1) {
+      // Which month a column belongs to is a property of the calendar, not of
+      // the data, so the label is derived from the date before any value is
+      // looked up. Deriving it inside the cell loop lost the label whenever
+      // the caller had supplied nothing for that column's first day.
+      const columnMonth = new Date(
+        firstColumnStart.getTime() + column * 7 * DAY_MS,
+      ).getUTCMonth();
+      if (columnMonth !== previousMonth) {
+        labels.push({ column, text: MONTHS[columnMonth] });
+        previousMonth = columnMonth;
+      }
+
       for (let row = 0; row < 7; row += 1) {
         const date = new Date(firstColumnStart.getTime() + (column * 7 + row) * DAY_MS);
         // Days after `end` are not "no data", they simply do not exist yet.
@@ -113,19 +125,27 @@ export function CalendarHeatmap({
           known: day.known !== false,
           meta: day.meta,
         });
-
-        if (row === 0) {
-          const month = date.getUTCMonth();
-          if (month !== previousMonth) {
-            labels.push({ column, text: MONTHS[month] });
-            previousMonth = month;
-          }
-        }
       }
     }
 
     return { cells: resolved, columnLabels: labels, dates: dateByKey, hidden: hiddenSlots };
   }, [values, end, weeks, weekStart]);
+
+  // A three-letter month is about 24px at the label's 10px font. When a month
+  // starts too few columns after the previous label there is no room for both,
+  // so the later one is dropped rather than drawn on top of its neighbour.
+  const monthLabels = useMemo(() => {
+    const stride = (heatmapProps.cellSize ?? 13) + (heatmapProps.gap ?? 3);
+    const minColumns = Math.ceil(30 / stride);
+    const kept: Array<{ column: number; text: string }> = [];
+    let lastColumn = Number.NEGATIVE_INFINITY;
+    for (const label of columnLabels) {
+      if (label.column - lastColumn < minColumns) continue;
+      kept.push(label);
+      lastColumn = label.column;
+    }
+    return kept;
+  }, [columnLabels, heatmapProps.cellSize, heatmapProps.gap]);
 
   const withDate = (cell: ResolvedCell): CalendarCell => ({
     ...cell,
@@ -145,7 +165,7 @@ export function CalendarHeatmap({
       values={cells}
       isSlotHidden={(row, column) => hidden.has(row + ":" + column)}
       rowLabels={rowLabels}
-      columnLabels={showMonthLabels ? columnLabels : undefined}
+      columnLabels={showMonthLabels ? monthLabels : undefined}
       tooltip={tooltip ? (cell) => tooltip(withDate(cell)) : undefined}
       cellLabel={(cell) => {
         const resolved = withDate(cell);

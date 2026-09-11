@@ -7,7 +7,12 @@
 <link rel="stylesheet" href="../src/styles.css" />
 <style>
   :root { color-scheme: light dark; --bg:#faf9f7; --panel:#fff; --line:#e6e1d9; --ink:#1a1815; --muted:#7d766d; --accent:#2563eb; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0f0e0d; --panel:#171614; --line:#2a2724; --ink:#e8e6e3; --muted:#9a938a; } }
+  /* Explicit choice wins in both directions; no attribute means follow the system. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f0e0d; --panel:#171614; --line:#2a2724; --ink:#e8e6e3; --muted:#9a938a; }
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; --bg:#0f0e0d; --panel:#171614; --line:#2a2724; --ink:#e8e6e3; --muted:#9a938a; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif; }
   .shell { display:grid; grid-template-columns:280px 1fr; min-height:100vh; }
@@ -49,7 +54,7 @@
 <body>
 <div id="root"><div class="boot">Loading… (React is fetched from a CDN)</div></div>
 <script type="module">
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { Heatmap, CalendarHeatmap } from "../dist/index.js";
 
@@ -89,6 +94,21 @@ const punchcard = Array.from({length:24},(_,hour)=>Array.from({length:7},(_,day)
   return Math.round(noise(hour*7+day,3)*100*work);
 }));
 
+// Label density is the caller's job: Heatmap positions the text it is given and
+// cannot know how wide it is, so pick a form that fits the column stride.
+const WEEKDAY_FORMS = [
+  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+  ["Su","Mo","Tu","We","Th","Fr","Sa"],
+  ["S","M","T","W","T","F","S"],
+];
+function weekdayLabels(stride){
+  // Below ~11px nothing fits in every column, so label alternate ones instead —
+  // the same thinning the calendar applies to its weekday rows.
+  if(stride<11) return [1,3,5].map(column=>({column,text:WEEKDAY_FORMS[2][column]}));
+  const names = stride>=26 ? WEEKDAY_FORMS[0] : stride>=15 ? WEEKDAY_FORMS[1] : WEEKDAY_FORMS[2];
+  return names.map((text,column)=>({column,text}));
+}
+
 function Row({label,htmlFor,children}){ return h("div",{className:"row"},h("label",{htmlFor},label),children); }
 function Slider({s,set,name,label,min,max,suffix=""}){ const id="c-"+name;
   return h(Row,{label,htmlFor:id},h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
@@ -123,6 +143,11 @@ function App(){
   const colors=RAMPS[s.ramp];
   const common={shape:s.shape,encode:s.encode,scale:s.scale,cellSize:s.cellSize,gap:s.gap,levels:s.levels,colors,emptyColor:s.empty};
   const themeAttr=s.theme==="system"?undefined:s.theme;
+  // The same choice has to reach the page chrome, not just the components.
+  useEffect(()=>{
+    const el=document.documentElement;
+    if(themeAttr) el.setAttribute("data-theme",themeAttr); else el.removeAttribute("data-theme");
+  },[themeAttr]);
 
   return h("div",{className:"shell"},
     h("aside",{className:"panel"},
@@ -160,7 +185,7 @@ function App(){
         h("p",null,"The same core with no dates involved: hours down, weekdays across."),
         h(Heatmap,{rows:24,columns:7,values:punchcard,ariaLabel:"Commits by hour and weekday",
           rowLabels:Array.from({length:24},(_,i)=>i%6===0?`${i}:00`:""),
-          columnLabels:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((t,i)=>({column:i,text:t})),
+          columnLabels:weekdayLabels(s.cellSize+s.gap),
           cellLabel:c=>`${c.row}:00 on day ${c.column}: ${c.value}`,
           tooltip:c=>`${String(c.row).padStart(2,"0")}:00 — ${c.value}`,
           "data-heatmap-theme":themeAttr,...common})),

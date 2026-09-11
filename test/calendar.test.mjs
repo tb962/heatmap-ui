@@ -45,6 +45,47 @@ test("a day with no data says so rather than reading as zero", () => {
   assert.match(html, /Monday, September 7, 2026\. No data\./);
 });
 
+test("a month is labelled from the calendar, not from the data it happens to have", () => {
+  // 2026-09-07 is a Monday; 20 weeks back reaches late April. Supplying a
+  // single day proves the labels do not depend on values being present.
+  const sparse = render(CalendarHeatmap, {
+    to: "2026-09-07",
+    weeks: 20,
+    cellSize: 30,
+    values: [{ date: "2026-09-07", value: 1 }],
+  });
+  const months = [...sparse.matchAll(/heatmap__column-label"[^>]*>([A-Z][a-z]{2})</g)]
+    .map((m) => m[1]);
+  assert.deepEqual(months, ["Apr", "May", "Jun", "Jul", "Aug", "Sep"]);
+
+  // The same range with every day supplied must label it identically.
+  const dense = render(CalendarHeatmap, {
+    to: "2026-09-07",
+    weeks: 20,
+    cellSize: 30,
+    values: Array.from({ length: 140 }, (_, i) => ({
+      date: new Date(Date.UTC(2026, 8, 7) - (139 - i) * 86400000)
+        .toISOString()
+        .slice(0, 10),
+      value: i,
+    })),
+  });
+  const denseMonths = [...dense.matchAll(/heatmap__column-label"[^>]*>([A-Z][a-z]{2})</g)]
+    .map((m) => m[1]);
+  assert.deepEqual(denseMonths, months);
+});
+
+test("month labels thin out when the columns are too narrow to hold them", () => {
+  const props = { to: "2026-09-07", weeks: 20, values: [{ date: "2026-09-07", value: 1 }] };
+  const count = (html) =>
+    (html.match(/heatmap__column-label/g) || []).length;
+
+  // April runs out one column into the range, so May cannot also be labelled
+  // at a 13px cell — but there is room for it at 30px.
+  assert.ok(count(render(CalendarHeatmap, { ...props, cellSize: 13 })) <
+            count(render(CalendarHeatmap, { ...props, cellSize: 30 })));
+});
+
 test("weekStart shifts which weekday sits in the first row", () => {
   const sunday = render(CalendarHeatmap, {
     to: "2026-09-07", weeks: 2, weekStart: 0, showWeekdayLabels: true,

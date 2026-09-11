@@ -22,14 +22,19 @@
   box-sizing: border-box;
 }
 
+/*
+ * A 2x2 grid ties the label tracks to the cell grid: the column labels share a
+ * column with the cells, so they cannot drift out of alignment when the row
+ * label gutter changes width.
+ */
 .heatmap__body {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: auto auto;
 }
 
 .heatmap__grid {
+  grid-area: 2 / 2;
   position: relative;
-  flex: none;
 }
 
 .heatmap__cell-slot {
@@ -61,14 +66,16 @@
   transform: scale(1.18);
 }
 
-/* Column labels sit above the grid, positioned by column index. */
+/* Column labels sit above the cells, each centred on the column it names. */
 .heatmap__column-labels {
+  grid-area: 1 / 2;
   position: relative;
 }
 
 .heatmap__column-label {
   position: absolute;
   top: 0;
+  transform: translateX(-50%);
   color: var(--heatmap-label);
   font-size: 10px;
   line-height: 1;
@@ -76,8 +83,10 @@
 }
 
 .heatmap__row-labels {
+  grid-area: 2 / 1;
+  /* The gutter is a margin, not a grid gap, so it disappears with the track. */
+  margin-right: 6px;
   position: relative;
-  flex: none;
   width: 2.2em;
 }
 

@@ -76,21 +76,21 @@ export function Heatmap({
       style={style}
       {...rest}
     >
-      {columnLabels && columnLabels.length > 0 ? (
-        <div className="heatmap__column-labels" style={{ height: 16, width }}>
-          {columnLabels.map((entry, index) => (
-            <span
-              key={index}
-              className="heatmap__column-label"
-              style={{ left: entry.column * columnWidth }}
-            >
-              {entry.text}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
       <div className="heatmap__body">
+        {columnLabels && columnLabels.length > 0 ? (
+          <div className="heatmap__column-labels" style={{ height: 16, width }}>
+            {columnLabels.map((entry, index) => (
+              <span
+                key={index}
+                className="heatmap__column-label"
+                style={{ left: entry.column * columnWidth + cellSize / 2 }}
+              >
+                {entry.text}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         {rowLabels && rowLabels.length > 0 ? (
           <div className="heatmap__row-labels" style={{ height }}>
             {rowLabels.map((text, index) => (
@@ -301,6 +301,16 @@ function HeatmapCellView({
   );
 }
 
+/*
+ * The legend is a key, not data, so its swatches read a step below the cells
+ * they describe. The step is proportional, and clamped so a swatch can never
+ * outgrow its own cell however small the grid gets.
+ */
+function legendSwatchSize(size: number) {
+  const target = Math.min(Math.round(size * 0.8), 12);
+  return Math.max(1, Math.min(target, size - 1));
+}
+
 function LegendSwatch({
   color,
   shape,
@@ -314,7 +324,7 @@ function LegendSwatch({
   radius: HeatmapProps["radius"];
   opacity?: number;
 }) {
-  const swatch = Math.max(8, Math.min(size, 14));
+  const swatch = legendSwatchSize(size);
   return (
     <span
       className="heatmap__legend-swatch"
