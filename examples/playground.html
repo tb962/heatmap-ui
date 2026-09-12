@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../src/styles.css?v=3d" />
+<link rel="stylesheet" href="../src/styles.css?v=4d" />
 <style>
 /* ---------------------------------------------------------------------------
  * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
@@ -54,6 +54,7 @@
 
   --focus-ring: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
   --ease-emphasis: cubic-bezier(0.2, 0, 0, 1);
+  --expo-out: linear(0 0%, .1684 2.66%, .3165 5.49%, .446 8.52%, .5581 11.78%, .6535 15.29%, .7341 19.11%, .8011 23.3%, .8557 27.93%, .8962 32.68%, .9283 38.01%, .9529 44.08%, .9711 51.14%, .9833 59.06%, .9915 68.74%, 1 100%);
 }
 
 /* Explicit choice wins in both directions; no attribute means follow the system. */
@@ -102,6 +103,39 @@
   --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
 }
 
+/* The theme effect is the reference's circle-blur reveal from the top left.
+ * The normal state update remains the fallback for browsers without View
+ * Transitions. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition {
+    pointer-events: none;
+  }
+  ::view-transition-group(root) {
+    animation-timing-function: var(--expo-out);
+  }
+  ::view-transition-new(root) {
+    -webkit-mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="0" cy="0" r="18" fill="white" filter="url(%23blur)"/></svg>') left top / 0 auto no-repeat;
+    mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="0" cy="0" r="18" fill="white" filter="url(%23blur)"/></svg>') left top / 0 auto no-repeat;
+    -webkit-mask-origin: content-box;
+    mask-origin: content-box;
+    -webkit-mask-clip: border-box;
+    mask-clip: border-box;
+    transform-origin: left top;
+    animation: theme-transition-scale 400ms ease both;
+  }
+  ::view-transition-old(root) {
+    transform-origin: left top;
+    z-index: -1;
+    animation: theme-transition-scale 400ms ease both;
+  }
+  @keyframes theme-transition-scale {
+    to {
+      -webkit-mask-size: 350vmax auto;
+      mask-size: 350vmax auto;
+    }
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -128,21 +162,49 @@ body {
 }
 
 /* --- Layout ------------------------------------------------------------- */
+.playground-root { position: relative; min-height: 100vh; }
+.theme-transition-scope { min-height: 100vh; background: var(--background); color: var(--foreground); }
 .shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 100vh; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
+
+.theme-switcher-float {
+  position: fixed;
+  top: 24px;
+  left: calc(300px - 8px - 16px - 96px);
+  z-index: 100;
+  pointer-events: auto;
+}
 
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 20px;
-  border-right: 1px solid var(--border);   /* structure, so it stays a border */
+  margin: 8px;
+  padding: 16px;
+  border-radius: var(--radius-xl);
   background: var(--card);
-  max-height: 100vh;
-  overflow-y: auto;
+  box-shadow: var(--shadow-border);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
   position: sticky;
-  top: 0;
+  top: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent) transparent;
 }
+.sidebar::-webkit-scrollbar { width: 8px; height: 8px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  transition: background-color 150ms ease-out;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+  background-clip: padding-box;
+}
+.sidebar::-webkit-scrollbar-corner { background: transparent; }
 @media (max-width: 900px) { .sidebar { position: static; max-height: none; } }
 /* The entrance animation leaves each group as its own stacking context. Raise
  * the focused group so its shadcn-style menu can clear later sidebar groups. */
@@ -171,7 +233,7 @@ body {
 .stage > * { position: relative; z-index: 1; }
 
 /* --- Brand -------------------------------------------------------------- */
-.brand { display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .brand-mark {
   display: grid;
   place-items: center;
@@ -182,7 +244,9 @@ body {
   color: var(--primary-foreground);
   box-shadow: var(--shadow-xs);
 }
+.brand-copy { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
 .brand-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-version { margin-top: 4px; color: var(--muted-foreground); font-size: 10px; line-height: 1; }
 
 /* --- Badge -------------------------------------------------------------- */
 .badge {
@@ -249,6 +313,51 @@ body {
   box-shadow: var(--shadow-xs);
 }
 .tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tabs-compact {
+  position: relative;
+  width: 96px;
+  min-width: 96px;
+  height: 32px;
+  margin-inline: auto;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+.tabs-compact .tab {
+  position: relative;
+  flex: none;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  gap: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  transition-property: color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tabs-compact .tab:hover { color: var(--foreground); }
+.tabs-compact .tab:active { scale: 1; }
+.tabs-compact .tab[data-state="active"] {
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+}
+.tabs-compact .tab > .tabs-compact-active {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+.tabs-compact .tab svg { flex: none; width: 16px; height: 16px; }
+.tabs-compact .tab:focus-visible { box-shadow: var(--focus-ring); }
 
 /* --- Select ------------------------------------------------------------- */
 .select-wrap { position: relative; display: flex; width: 158px; }
@@ -510,6 +619,46 @@ body {
 }
 .card:hover { box-shadow: var(--shadow-border-hover); }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.preview-card { gap: 0; padding: 0; overflow: hidden; }
+.preview-tabs {
+  display: flex; align-items: stretch; gap: 2px;
+  min-height: 46px; padding-inline: 16px;
+  background: var(--card);
+}
+.preview-tab {
+  position: relative;
+  display: inline-flex; align-items: center;
+  height: 46px; padding-inline: 8px;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground);
+  font: inherit; font-size: 13px; font-weight: 500;
+  line-height: 1; cursor: pointer;
+  transition-property: color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.preview-tab:hover { color: var(--foreground); }
+.preview-tab[aria-selected="true"] { color: var(--foreground); }
+.preview-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute; inset-inline: 0; bottom: 0;
+  height: 2px; border-radius: 9999px;
+  background: var(--foreground);
+}
+.preview-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.preview-surface {
+  display: flex; flex-direction: column; gap: 16px;
+  margin: 0 4px 4px; padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background); color: var(--foreground);
+  overflow: hidden;
+}
+.code-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.code-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.code-panel-head .card-desc { max-width: 60ch; }
+.code-panel .code { overflow: auto; }
+.card-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
 .card-desc { margin: 4px 0 0; font-size: 13px; color: var(--muted-foreground); }
 .card-body {
@@ -575,6 +724,7 @@ body {
 .dimension-switch button[aria-pressed="true"] { background:var(--card); color:var(--foreground); box-shadow:var(--shadow-border); }
 .dimension-switch button:focus-visible, .material:focus-visible, .camera-preset:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
 .three-card { padding-bottom:16px; overflow:hidden; }
+.preview-card.three-card { padding: 0; }
 .three-card .card-head { align-items:center; }
 .three-card .card-body { overflow:visible; margin:0 -16px; padding:0; }
 .three-card .heatmap3d { width:100%; }
@@ -594,12 +744,13 @@ body {
 .chart-status strong { color:var(--foreground); font-weight:500; }
 .chart-view-actions { display:flex; align-items:center; gap:8px; }
 .chart-view-actions .btn { height:30px; font-size:11px; }
-@media (max-width:900px) { .stage { padding:20px; } .sidebar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; } .sidebar > hr { display:none; } .sidebar > :first-child { grid-column:1/-1; } }
-@media (max-width:540px) { .stage { padding:14px; } .sidebar { display:flex; padding:16px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } }
+@media (max-width:900px) { .stage { padding:20px; } .sidebar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; max-height:none; } .sidebar > hr { display:none; } .sidebar > :first-child { grid-column:1/-1; } .theme-switcher-float { left:auto; right:24px; } }
+@media (max-width:540px) { .stage { padding:14px; } .sidebar { display:flex; padding:16px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .preview-surface { padding:16px; } .code-panel-head { flex-wrap:wrap; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } .theme-switcher-float { top:24px; right:24px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; opacity: 1; transform: none; filter: none; }
   .icon-swap > span { transition-duration: 1ms; }
+  .tabs-compact .tab { transition-duration: 1ms; }
 }
 </style>
 <script type="importmap">
@@ -662,11 +813,11 @@ const DEFAULTS = {
   theme3d:"green", material:"solid", animation:"grow",
   yaw:-35, pitch:38, zoom:100,
   shape:"rounded", encode:"color", scale:"quantile",
-  cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:null, showLegend:true, showValues:true, theme:"system", base:"#8b5cf6",
+  cellSize:13, gap:3, levels:4,
+  ramp:"green", empty:null, showLegend:true, showValues:false, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
-  weeks:20, weekStart:"Sunday", showMonths:true, showWeekdays:false,
+  weeks:53, weekStart:"Sunday", showMonths:true, showWeekdays:false,
   // Punchcard
   showHours:true, showDays:true,
   // Cohort retention
@@ -1035,13 +1186,31 @@ function HexField({value,onChange}){
       onBlur:()=>setDraft(value)}));
 }
 
-function Tabs({value,options,onChange,label}){
-  return h("div",{className:"tabs",role:"tablist","aria-label":label},
-    options.map(o=>
-      h("button",{key:o.value,type:"button",className:"tab",role:"tab",
-        "aria-selected":value===o.value,"data-state":value===o.value?"active":"inactive",
-        onClick:()=>onChange(o.value)},
-        h(Icon,{name:o.icon,size:14,stroke:2}), o.label)));
+function Tabs({value,options,onChange,label,compact=false}){
+  const move=(event,index)=>{
+    if(!compact) return;
+    const nextIndex=event.key==="Home"?0:event.key==="End"?options.length-1:null;
+    const delta=event.key==="ArrowRight"||event.key==="ArrowDown"?1:
+      event.key==="ArrowLeft"||event.key==="ArrowUp"?-1:0;
+    if(nextIndex===null&&!delta) return;
+    event.preventDefault();
+    const next=nextIndex===null?(index+delta+options.length)%options.length:nextIndex;
+    const group=event.currentTarget.parentElement;
+    onChange(options[next].value);
+    requestAnimationFrame(()=>group?.children[next]?.focus());
+  };
+  return h("div",{className:"tabs"+(compact?" tabs-compact":""),role:compact?"radiogroup":"tablist","aria-label":label},
+    options.map((o,index)=>{
+      const selected=value===o.value;
+      return h("button",{key:o.value,type:"button",className:"tab",role:compact?"radio":"tab",
+        "aria-selected":compact?undefined:selected,"aria-checked":compact?selected:undefined,
+        tabIndex:compact?(selected?0:-1):undefined,
+        "data-state":selected?"active":"inactive","data-active":compact?selected:undefined,
+        "aria-label":compact?`Switch to ${o.label.toLowerCase()} theme`:undefined,
+        onClick:event=>{if(!selected) onChange(o.value,{animate:event.detail>0});},onKeyDown:event=>move(event,index)},
+        h(Icon,{name:o.icon,size:compact?16:14,stroke:2}),
+        compact&&selected?h("span",{className:"tabs-compact-active","aria-hidden":"true"}):compact?null:o.label);
+    }));
 }
 
 /** Both icons stay mounted and cross-fade, so enter and exit both animate. */
@@ -1361,6 +1530,9 @@ const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
 
 function App(){
   const [s,setS]=useState(DEFAULTS);
+  const [panelView,setPanelView]=useState("preview");
+  const themeScopeRef=useRef(null);
+  const activeThemeTransition=useRef(null);
   const set=(k,v)=>setS(p=>({...p,[k]:v}));
   const is3d=s.dimension==="3d";
   const setCamera=c=>setS(p=>({...p,yaw:c.yaw,pitch:c.pitch,zoom:c.zoom*100}));
@@ -1384,10 +1556,39 @@ function App(){
   // The theme choice has to reach the page chrome, not just the components.
   useEffect(()=>{
     const el=document.documentElement;
-    suppressTransitions();
     if(themeAttr) el.setAttribute("data-theme",themeAttr); else el.removeAttribute("data-theme");
   },[themeAttr]);
   useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
+
+  const changeTheme=(theme,{animate=false}={})=>{
+    const switchTheme=()=>set("theme",theme);
+    const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const scope=themeScopeRef.current;
+    const start=scope?.startViewTransition;
+    if(!animate||reduced||!scope||typeof start!=="function"){
+      suppressTransitions();
+      switchTheme();
+      return;
+    }
+    const active=activeThemeTransition.current;
+    if(active){
+      active.skipTransition?.();
+      activeThemeTransition.current=null;
+      suppressTransitions();
+      switchTheme();
+      return;
+    }
+    try {
+      const transition=start.call(scope,switchTheme);
+      activeThemeTransition.current=transition;
+      void transition.finished.catch(()=>{}).finally(()=>{
+        if(activeThemeTransition.current===transition) activeThemeTransition.current=null;
+      });
+    } catch {
+      suppressTransitions();
+      switchTheme();
+    }
+  };
 
   const common={scale:s.scale,cellSize:s.cellSize,
     gap:s.gap,levels:s.levels,showLegend:s.showLegend,
@@ -1406,24 +1607,20 @@ function App(){
   const flatView=graph.view(ctx);
   const chart=is3d?h(s.graph==="calendar"?CalendarHeatmap3D:Heatmap3D,flatView.props):flatView;
 
-  return h("div",{className:"shell"},
-    h("aside",{className:"sidebar"},
-      h("div",enter(0),
-        h("div",{className:"brand"},
-          h("div",{className:"brand-mark"},h(BrandMark)),
-          h("div",null,
-            h("div",{className:"brand-name"},"heatmap-ui")),
-          h("span",{className:"badge",style:{marginLeft:"auto"}},"v0.1.0"))),
-
-      h("div",{...enter(1),className:"group enter"},
-        h(Tabs,{value:s.theme,label:"Theme",onChange:v=>set("theme",v),options:[
-          {value:"system",label:"System",icon:"monitor"},
-          {value:"light",label:"Light",icon:"sun"},
-          {value:"dark",label:"Dark",icon:"moon"}]})),
+  return h("div",{className:"playground-root"},
+    h("div",{className:"theme-transition-scope",ref:themeScopeRef},
+      h("div",{className:"shell"},
+        h("aside",{className:"sidebar"},
+          h("div",enter(0),
+          h("div",{className:"brand"},
+            h("div",{className:"brand-mark"},h(BrandMark)),
+            h("div",{className:"brand-copy"},
+              h("div",{className:"brand-name"},"heatmap-ui"),
+              h("span",{className:"brand-version"},"v0.1.0")))),
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(2),className:"group enter"},
+      h("div",{...enter(1),className:"group enter"},
         h("h2",{className:"group-title"},"Graph"),
         h(Select,{s,set,name:"graph",label:"Type",options:GRAPH_NAMES,
           format:k=>GRAPHS[k].label}),
@@ -1431,7 +1628,7 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(3),className:"group enter"},
+      h("div",{...enter(2),className:"group enter"},
         h("h2",{className:"group-title"},"Cells"),
         is3d?h(Select,{s,set,name:"shape3d",label:"Shape",options:SHAPES_3D,
           format:k=>k.charAt(0).toUpperCase()+k.slice(1)}):h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES,
@@ -1464,7 +1661,7 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(4),className:"group enter"},
+      h("div",{...enter(3),className:"group enter"},
         h("h2",{className:"group-title"},is3d?"Colour scale":"Scale"),
         h(Select,{s,set,name:"scale",label:"Scale",options:["quantile","linear","log"]}),
         h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8}),
@@ -1472,7 +1669,7 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(5),className:"group enter"},
+      h("div",{...enter(4),className:"group enter"},
         h("h2",{className:"group-title"},"Colour"),
         h("div",{className:"field-stack"},
           h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES,
@@ -1489,12 +1686,12 @@ function App(){
 
       h("hr",{className:"separator"}),
 
-      h("div",{...enter(6),className:"group enter"},
+      h("div",{...enter(5),className:"group enter"},
         h("h2",{className:"group-title"},"Labels"),
         !is3d?h(Switch,{s,set,name:"showValues",label:"Values"}):null,
         h(Switch,{s,set,name:"showLegend",label:"Legend"})),
 
-      h("div",enter(7,{marginTop:"auto",paddingTop:"8px"}),
+      h("div",enter(6,{marginTop:"auto",paddingTop:"8px"}),
         h("button",{type:"button",className:"btn btn-ghost",
           onClick:()=>setS(p=>({...DEFAULTS,theme:p.theme}))},
           h(Icon,{name:"reset",stroke:2}),"Reset controls"))),
@@ -1512,29 +1709,46 @@ function App(){
           h("code",null,"npm i @tb962/heatmap-ui"),
           h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
 
-      h("section",{...enter(1),className:"card enter"+(is3d?" three-card":"")},
-        h("div",{className:"card-head"},
-          h("div",null,
-            is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
-            h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
-            h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
-          h("div",{className:"chart-view-actions"},
-            h("span",{className:"badge"},graph.badge(s)),
-            is3d?h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view"):null)),
-        h("div",{className:"card-body"},chart),
-        is3d?h("div",{className:"chart-status"},
-          h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
-          h("span",null,"Drag to orbit · + / − to zoom"),
-          h("span",null,h("strong",null,Math.round(s.yaw)+"°")," / ",Math.round(s.pitch)+"°")):null),
-
-      h("section",{...enter(2),className:"card enter"},
-        h("div",{className:"card-head"},
-          h("div",null,
-            h("h2",{className:"card-title"},"This exact chart, as code"),
-            h("p",{className:"card-desc"},
-              "Every prop above is in effect. Only the data is yours — its shape is in the first comment.")),
-          h(CopyButton,{text:code})),
-        h("pre",{className:"code"},code))));
+      h("section",{...enter(1),className:"card preview-card enter"+(is3d?" three-card":"")},
+        h("div",{className:"preview-tabs",role:"tablist","aria-label":"Chart view"},
+          h("button",{id:"chart-preview-tab",type:"button",className:"preview-tab",role:"tab",
+            "aria-selected":panelView==="preview","aria-controls":"chart-view-panel",
+            onClick:()=>setPanelView("preview")},"Preview"),
+          h("button",{id:"chart-code-tab",type:"button",className:"preview-tab",role:"tab",
+            "aria-selected":panelView==="code","aria-controls":"chart-view-panel",
+            onClick:()=>setPanelView("code")},"Code")),
+        h("div",{id:"chart-view-panel",className:"preview-surface",role:"tabpanel",
+          "aria-labelledby":panelView==="preview"?"chart-preview-tab":"chart-code-tab"},
+          panelView==="preview"
+            ? h(React.Fragment,null,
+                h("div",{className:"card-head"},
+                  h("div",null,
+                    is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
+                    h("div",{className:"card-title-line"},
+                      h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
+                      h("span",{className:"badge"},graph.badge(s))),
+                    h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
+                  is3d?h("div",{className:"chart-view-actions"},
+                    h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view")):null),
+                h("div",{className:"card-body"},chart),
+                is3d?h("div",{className:"chart-status"},
+                  h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
+                  h("span",null,"Drag to orbit · + / − to zoom"),
+                  h("span",null,h("strong",null,Math.round(s.yaw)+"°")," / ",Math.round(s.pitch)+"°")):null)
+            : h("div",{className:"code-panel"},
+                h("div",{className:"code-panel-head"},
+                  h("div",null,
+                    h("h2",{className:"card-title"},"This exact chart, as code"),
+                    h("p",{className:"card-desc"},
+                      "Every prop above is in effect. Only the data is yours — its shape is in the first comment.")),
+                  h(CopyButton,{text:code})),
+                h("pre",{className:"code"},code))))))),
+    h("div",{className:"theme-switcher-float"},
+      h(Tabs,{value:s.theme,label:"Theme",compact:true,onChange:(v,meta)=>changeTheme(v,meta),options:[
+        {value:"system",label:"System",icon:"monitor"},
+        {value:"light",label:"Light",icon:"sun"},
+        {value:"dark",label:"Dark",icon:"moon"}]}))
+  );
 }
 createRoot(document.getElementById("root")).render(h(App));
 </script>

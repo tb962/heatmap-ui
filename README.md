@@ -77,7 +77,7 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `isSlotHidden` | — | `(row, column) => boolean` for ragged grids. |
 | `rowLabels`, `columnLabels` | — | Positioned against the grid. |
 | `tooltip` | — | `(cell) => ReactNode`; opens on hover and focus. |
-| `cellContent` | — | Optional visual React node centred inside each cell. |
+| `cellContent` | — | Optional visual React node centred inside each cell; values are hidden unless provided. |
 | `cellLabel` | — | `(cell) => string`; the accessible name for a cell. |
 | `onCellClick` | — | Makes cells buttons. |
 | `showLegend` | `false` | less/more key, plus "no data" when relevant. |
@@ -232,6 +232,8 @@ and tooltips so it can remain an SVG renderer without an HTML overlay layer.
   tooltip={(day) => `${day.date}: ${day.value}`}
 />
 ```
+
+`weeks` defaults to 53 when omitted.
 
 It owns everything date-shaped: mapping dates onto the grid, month labels,
 weekday labels, and a default accessible name per day. Days after `to` are
