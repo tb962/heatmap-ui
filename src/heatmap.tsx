@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 
+import { luminance, parseHex } from "./colors.js";
 import { buildCells } from "./grid.js";
 import { fillStyle, rowOffset, rowSpacing, shapeStyle } from "./shapes.js";
 import type { HeatmapProps, ResolvedCell } from "./types.js";
@@ -30,6 +31,7 @@ export function Heatmap({
   rowLabels,
   columnLabels,
   tooltip,
+  cellContent,
   cellLabel,
   onCellClick,
   isSlotHidden,
@@ -122,6 +124,7 @@ export function Heatmap({
               unknownOpacity={unknownOpacity}
               minScale={minScale}
               tooltip={tooltip}
+              cellContent={cellContent}
               cellLabel={cellLabel}
               onCellClick={onCellClick}
               nearLeftEdge={cell.column === 0}
@@ -179,6 +182,7 @@ function HeatmapCellView({
   unknownOpacity,
   minScale,
   tooltip,
+  cellContent,
   cellLabel,
   onCellClick,
   nearLeftEdge,
@@ -197,6 +201,7 @@ function HeatmapCellView({
   unknownOpacity: number;
   minScale: number;
   tooltip: HeatmapProps["tooltip"];
+  cellContent: HeatmapProps["cellContent"];
   cellLabel: HeatmapProps["cellLabel"];
   onCellClick: HeatmapProps["onCellClick"];
   nearLeftEdge: boolean;
@@ -214,6 +219,13 @@ function HeatmapCellView({
   );
 
   const content = tooltip ? tooltip(cell) : null;
+  const visualContent = cellContent ? cellContent(cell) : null;
+  const hasVisualContent =
+    visualContent !== null &&
+    visualContent !== undefined &&
+    visualContent !== false &&
+    visualContent !== true &&
+    visualContent !== "";
   const name = cellLabel ? cellLabel(cell) : undefined;
   const interactive = Boolean(content || name || onCellClick);
 
@@ -256,6 +268,26 @@ function HeatmapCellView({
     ...box,
     ...fillStyle(shape, cell.level, levels, color, size),
   };
+  const contentText =
+    typeof visualContent === "string" || typeof visualContent === "number"
+      ? String(visualContent)
+      : "";
+  const contentStyle: CSSProperties = {
+    // Hex ramps can choose a readable ink automatically. CSS variables and
+    // other non-hex colours fall back to the inherited colour, and a custom
+    // node can still set its own.
+    ...(parseHex(color)
+      ? { color: luminance(color) > 0.18 ? "#171614" : "#ffffff" }
+      : {}),
+    ...(contentText
+      ? {
+          fontSize: Math.max(
+            6,
+            Math.min(11, size * 0.68 - Math.max(0, contentText.length - 2) * 1.1),
+          ),
+        }
+      : {}),
+  };
 
   return (
     <div
@@ -286,7 +318,13 @@ function HeatmapCellView({
       <div
         className="heatmap__cell"
         style={{ ...fill, opacity: cell.known ? 1 : unknownOpacity }}
-      />
+      >
+        {hasVisualContent ? (
+          <span className="heatmap__cell-content" aria-hidden="true" style={contentStyle}>
+            {visualContent}
+          </span>
+        ) : null}
+      </div>
       {open && content ? (
         <div
           id={tooltipId}

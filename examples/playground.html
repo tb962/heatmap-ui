@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../src/styles.css" />
+<link rel="stylesheet" href="../src/styles.css?v=3d" />
 <style>
 /* ---------------------------------------------------------------------------
  * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
@@ -144,6 +144,9 @@ body {
   top: 0;
 }
 @media (max-width: 900px) { .sidebar { position: static; max-height: none; } }
+/* The entrance animation leaves each group as its own stacking context. Raise
+ * the focused group so its shadcn-style menu can clear later sidebar groups. */
+.sidebar > .enter:focus-within { position: relative; z-index: 40; }
 
 .stage {
   position: relative;
@@ -168,11 +171,11 @@ body {
 .stage > * { position: relative; z-index: 1; }
 
 /* --- Brand -------------------------------------------------------------- */
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 8px; }
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 36px; height: 36px;
+  width: 30px; height: 30px;
   flex: none;
   border-radius: var(--radius-lg);
   background: var(--primary);
@@ -180,7 +183,6 @@ body {
   box-shadow: var(--shadow-xs);
 }
 .brand-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-.brand-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted-foreground); }
 
 /* --- Badge -------------------------------------------------------------- */
 .badge {
@@ -251,6 +253,7 @@ body {
 /* --- Select ------------------------------------------------------------- */
 .select-wrap { position: relative; display: flex; width: 158px; }
 .select {
+  display: inline-flex; align-items: center; justify-content: space-between;
   width: 100%; height: 36px;
   padding: 0 32px 0 12px;
   border: 1px solid var(--input);
@@ -258,8 +261,8 @@ body {
   background: transparent;
   color: var(--foreground);
   font: inherit; font-size: 13px;
+  text-align: left;
   cursor: pointer;
-  appearance: none;
   box-shadow: var(--shadow-xs);
   transition-property: border-color, box-shadow;
   transition-duration: 150ms;
@@ -267,12 +270,67 @@ body {
 }
 .select:hover { border-color: var(--ring); }
 .select:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.select[aria-expanded="true"] { border-color: var(--ring); box-shadow: var(--focus-ring); }
 .select-chevron {
   position: absolute; right: 10px; top: 50%;
   translate: 0 -50%;
   pointer-events: none;
   color: var(--muted-foreground);
+  transition-property: rotate;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
 }
+.select-wrap[data-open="true"] .select-chevron { rotate: 180deg; }
+.select-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+  display: flex; flex-direction: column; gap: 2px;
+  width: 100%; max-height: 280px; overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 10px 30px -12px oklch(0 0 0 / 0.5);
+}
+.select-wrap[data-placement="top"] .select-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.select-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit; font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.select-option-content { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.shape-option-preview {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; flex: none;
+  color: var(--muted-foreground);
+}
+.shape-option-preview-cell { display: block; width: 16px; height: 16px; }
+.ramp-option-preview {
+  display: inline-flex; align-items: center; gap: 3px;
+  width: 45px; height: 20px; flex: none;
+}
+.ramp-option-preview span {
+  width: 9px; height: 9px; flex: none;
+  border-radius: 9999px;
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
+.select-option[data-selected="true"] .shape-option-preview { color: var(--foreground); }
+.select-option:hover,
+.select-option[data-highlighted="true"] { background: var(--accent); }
+.select-option[data-selected="true"] { font-weight: 500; }
+.select-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.select-option-check { display: inline-flex; flex: none; color: var(--muted-foreground); }
 
 /* --- Slider ------------------------------------------------------------- */
 .slider {
@@ -494,30 +552,6 @@ body {
   overflow-x: auto;
 }
 
-/* --- Shapes gallery ----------------------------------------------------- */
-/* Each shape has a different intrinsic width, so an even grid keeps the tiles
- * aligned where flex-wrap would leave ragged rows. */
-.shapes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 8px;
-}
-.shapes figure {
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  margin: 0;
-  /* The tile holds no nested surface, so its radius is chosen, not concentric. */
-  padding: 14px;
-  border-radius: var(--radius-xl);
-  background: var(--background);
-  overflow-x: auto;
-  box-shadow: var(--shadow-border);
-  transition-property: box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
-}
-.shapes figure:hover { box-shadow: var(--shadow-border-hover); }
-.shapes figcaption { font-size: 11px; color: var(--muted-foreground); }
-
 /* --- Staged entrance ---------------------------------------------------- */
 .enter {
   opacity: 0;
@@ -533,6 +567,35 @@ body {
 }
 
 .boot { padding: 32px; color: var(--muted-foreground); }
+
+/* The 3D workbench shares the playground's quiet, neutral chrome. */
+.page-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+.dimension-switch { display:flex; flex:none; gap:3px; padding:4px; border-radius:12px; background:var(--muted); }
+.dimension-switch button { display:flex; align-items:center; justify-content:center; gap:7px; min-width:80px; height:36px; padding:0 14px; border:0; border-radius:8px; background:transparent; color:var(--muted-foreground); font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
+.dimension-switch button[aria-pressed="true"] { background:var(--card); color:var(--foreground); box-shadow:var(--shadow-border); }
+.dimension-switch button:focus-visible, .material:focus-visible, .camera-preset:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
+.three-card { padding-bottom:16px; overflow:hidden; }
+.three-card .card-head { align-items:center; }
+.three-card .card-body { overflow:visible; margin:0 -16px; padding:0; }
+.three-card .heatmap3d { width:100%; }
+.three-kicker { display:flex; align-items:center; gap:7px; margin-bottom:8px; font:500 10px "Geist Mono",monospace; color:var(--muted-foreground); letter-spacing:.09em; text-transform:uppercase; }
+.three-kicker i { display:block; width:6px; height:6px; border-radius:50%; background:var(--foreground); }
+.material-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.material { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px 9px; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--muted-foreground); font:inherit; font-size:11px; cursor:pointer; transition:background-color 150ms ease-out,color 150ms ease-out; }
+.material:hover { background:var(--muted); color:var(--foreground); }
+.material[aria-pressed="true"] { color:var(--foreground); background:var(--muted); border-color:var(--foreground); }
+.material svg { width:46px; height:45px; }
+.field-note { margin:0; color:var(--muted-foreground); font-size:11px; line-height:1.6; }
+.camera-presets { display:flex; flex-wrap:wrap; gap:5px; }
+.camera-preset { flex:1; padding:7px 5px; border:1px solid var(--border); border-radius:7px; background:var(--card); color:var(--muted-foreground); font:inherit; font-size:11px; cursor:pointer; }
+.camera-preset[aria-pressed="true"] { color:var(--foreground); background:var(--muted); border-color:var(--ring); }
+.chart-status { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:14px; border-top:1px solid var(--border); color:var(--muted-foreground); font:400 11px "Geist Mono",monospace; }
+.chart-status span { display:flex; align-items:center; gap:6px; }
+.chart-status strong { color:var(--foreground); font-weight:500; }
+.chart-view-actions { display:flex; align-items:center; gap:8px; }
+.chart-view-actions .btn { height:30px; font-size:11px; }
+@media (max-width:900px) { .stage { padding:20px; } .sidebar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; } .sidebar > hr { display:none; } .sidebar > :first-child { grid-column:1/-1; } }
+@media (max-width:540px) { .stage { padding:14px; } .sidebar { display:flex; padding:16px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; opacity: 1; transform: none; filter: none; }
@@ -553,16 +616,33 @@ body {
 <script type="module">
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Heatmap, CalendarHeatmap, deriveRamp, parseHex } from "../dist/index.js";
+import { Heatmap, Heatmap3D, CalendarHeatmap, CalendarHeatmap3D, deriveRamp, parseHex, fillStyle, shapeStyle } from "../dist/index.js";
 
 const h = React.createElement;
 const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ring"];
+const SHAPES_3D = ["rectangle","circle","bar"];
+const MATERIALS = [{value:"solid",label:"Solid"},{value:"lego",label:"LEGO"},{value:"building",label:"Skyline"}];
+const SURFACE_MATERIALS = ["solid","pattern"];
+const THEMES_3D = ["green","night","seasonal","rainbow"];
+const ANIMATIONS_3D = ["none","grow"];
+const CAMERA_PRESETS = [{label:"Isometric",yaw:-35,pitch:38},{label:"Front",yaw:0,pitch:22},{label:"Top",yaw:0,pitch:75}];
+/* Presentation-only palettes. The package stays neutral and accepts a plain
+ * `colors` array; the playground owns names, light/dark tuning, and previews. */
 const RAMPS = {
-  green:  ["#9be9a8","#40c463","#30a14e","#216e39"],
-  blue:   ["#bfd4f7","#7ea6f0","#3f74e0","#1b4bb8"],
-  violet: ["#ddd0f7","#b79bec","#8b5cf6","#5b2fc4"],
-  amber:  ["#fde8b8","#f8cd6b","#eda52b","#b9740a"],
-  mono:   ["#d9d5cf","#a8a29a","#6f6a62","#33302c"],
+  green:    {label:"GitHub", light:["#9be9a8","#40c463","#30a14e","#216e39"], dark:["#0e4429","#006d32","#26a641","#39d353"]},
+  halloween:{label:"Halloween", light:["#ffedd5","#fdba74","#f97316","#9a3412"], dark:["#431407","#7c2d12","#ea580c","#fb923c"]},
+  winter:   {label:"Winter", light:["#dbeafe","#93c5fd","#3b82f6","#1d4ed8"], dark:["#172554","#1d4ed8","#3b82f6","#93c5fd"]},
+  ocean:    {label:"Ocean", light:["#cffafe","#67e8f9","#06b6d4","#0e7490"], dark:["#082f49","#0369a1","#0ea5e9","#7dd3fc"]},
+  sunset:   {label:"Sunset", light:["#fee2e2","#fca5a5","#ef4444","#991b1b"], dark:["#450a0a","#991b1b","#ef4444","#fca5a5"]},
+  forest:   {label:"Forest", light:["#dcfce7","#86efac","#22c55e","#166534"], dark:["#052e16","#166534","#22c55e","#86efac"]},
+  lavender: {label:"Lavender", light:["#ede9fe","#c4b5fd","#8b5cf6","#6d28d9"], dark:["#2e1065","#6d28d9","#8b5cf6","#c4b5fd"]},
+  cherry:   {label:"Cherry", light:["#ffe4e6","#fda4af","#f43f5e","#9f1239"], dark:["#450a0a","#9f1239","#f43f5e","#fda4af"]},
+  mint:     {label:"Mint", light:["#ccfbf1","#5eead4","#14b8a6","#0f766e"], dark:["#042f2e","#0f766e","#14b8a6","#5eead4"]},
+  coral:    {label:"Coral", light:["#ffedd5","#fdba74","#fb7185","#c2410c"], dark:["#431407","#9a3412","#f97316","#fdba74"]},
+  slate:    {label:"Slate", light:["#e2e8f0","#94a3b8","#64748b","#334155"], dark:["#0f172a","#334155","#64748b","#cbd5e1"]},
+  gold:     {label:"Gold", light:["#fef3c7","#fcd34d","#f59e0b","#92400e"], dark:["#451a03","#78350f","#f59e0b","#fcd34d"]},
+  neon:     {label:"Neon", light:["#cffafe","#67e8f9","#06b6d4","#0891b2"], dark:["#042f2e","#0f766e","#06b6d4","#67e8f9"]},
+  rose:     {label:"Rose", light:["#fce7f3","#f9a8d4","#ec4899","#9d174d"], dark:["#500724","#9d174d","#ec4899","#f9a8d4"]},
 };
 
 const EMPTY_LIGHT = "#ebedf0";
@@ -578,9 +658,12 @@ const CUSTOM = "custom";
 const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
 
 const DEFAULTS = {
+  dimension:"3d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
+  theme3d:"green", material:"solid", animation:"grow",
+  yaw:-35, pitch:38, zoom:100,
   shape:"rounded", encode:"color", scale:"quantile",
   cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:null, showLegend:true, theme:"system", base:"#8b5cf6",
+  ramp:"green", empty:null, showLegend:true, showValues:true, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
   weeks:20, weekStart:"Sunday", showMonths:true, showWeekdays:false,
@@ -603,6 +686,9 @@ const PATHS = {
   check: ["M20 6 9 17l-5-5"],
   chevron: ["m6 9 6 6 6-6"],
   reset: ["M3 12a9 9 0 1 0 3-6.7L3 8","M3 3v5h5"],
+  cube: ["m12 3 9 5-9 5-9-5 9-5Z","M3 8v9l9 5 9-5V8","M12 13v9"],
+  grid: ["M3 3h7v7H3z","M14 3h7v7h-7z","M3 14h7v7H3z","M14 14h7v7h-7z"],
+  height: ["M12 3v18","m8 7 4-4 4 4","m8 17 4 4 4-4"],
 };
 
 function Icon({ name, size = 16, stroke = 2 }) {
@@ -617,7 +703,7 @@ function Icon({ name, size = 16, stroke = 2 }) {
 /** The brand mark is the product: a nine-cell grid at three intensities. */
 function BrandMark() {
   const level = [1, 0.45, 0.75, 0.45, 1, 0.28, 0.75, 0.28, 0.6];
-  return h("svg", { width: 20, height: 20, viewBox: "0 0 20 20", "aria-hidden": "true" },
+  return h("svg", { width: 16, height: 16, viewBox: "0 0 20 20", "aria-hidden": "true" },
     level.map((opacity, i) =>
       h("rect", {
         key: i, width: 5, height: 5, rx: 1.6,
@@ -731,7 +817,27 @@ function Slider({s,set,name,label,min,max,suffix=""}){
     h("div",{className:"field-control"},
       h("input",{id,className:"slider",type:"range",min,max,value:s[name],
         style:{"--pct":pct},onChange:e=>set(name,Number(e.target.value))}),
-      h("output",{className:"field-value",htmlFor:id},s[name]+suffix)));
+      h("output",{className:"field-value",htmlFor:id},Math.round(s[name])+suffix)));
+}
+
+function MaterialPreview({kind}){
+  const children=[
+    h("path",{key:"left",d:"M8 17 24 25V43L8 35Z",fill:"currentColor",opacity:.6}),
+    h("path",{key:"right",d:"M24 25 40 17V35L24 43Z",fill:"currentColor",opacity:.85}),
+    h("path",{key:"top",d:"M8 17 24 9 40 17 24 25Z",fill:"currentColor",opacity:.35})];
+  if(kind==="lego") [[19,14],[29,19],[29,9],[39,14]].forEach(([x,y],i)=>children.push(
+    h("g",{key:i,transform:`translate(${x-5} ${y})`},
+      h("path",{d:"M0 0v3c0 3 7 3 7 0V0",fill:"currentColor",opacity:.75}),
+      h("ellipse",{cx:3.5,cy:0,rx:3.5,ry:2,fill:"currentColor",opacity:.35}))));
+  if(kind==="building") [0,1,2].forEach(row=>[0,1].forEach(col=>children.push(
+    h("path",{key:`w${row}${col}`,d:`M${28+col*6} ${26+row*5-col*3}v3l3-1.5v-3Z`,fill:"var(--card)",opacity:.9}))));
+  return h("svg",{viewBox:"0 0 48 48","aria-hidden":"true"},children);
+}
+
+function DimensionSwitch({value,onChange}){
+  return h("div",{className:"dimension-switch",role:"group","aria-label":"Chart dimension"},
+    ["2d","3d"].map(v=>h("button",{key:v,type:"button","aria-pressed":value===v,onClick:()=>onChange(v)},
+      h(Icon,{name:v==="3d"?"cube":"grid",size:15}),v.toUpperCase())));
 }
 
 function Switch({s,set,name,label}){
@@ -744,14 +850,135 @@ function Switch({s,set,name,label}){
       h("span",{className:"switch-thumb"})));
 }
 
-function Select({s,set,name,label,options,format}){
+function ShapePreview({shape}){
+  const size=16;
+  return h("span",{className:"shape-option-preview","aria-hidden":"true"},
+    h("span",{className:"shape-option-preview-cell",
+      style:{...shapeStyle(shape),...fillStyle(shape,3,4,"currentColor",size)}}));
+}
+
+function paletteFor(name,{dark=false,base="#8b5cf6",levels=4}={}){
+  if(name===CUSTOM){
+    return deriveRamp(base,{levels,ground:dark?GROUND_DARK:GROUND_LIGHT});
+  }
+  const preset=RAMPS[name]||RAMPS.green;
+  return resampleRamp(preset[dark?"dark":"light"],levels);
+}
+
+function RampPreview({ramp,dark,base}){
+  return h("span",{className:"ramp-option-preview","aria-hidden":"true"},
+    paletteFor(ramp,{dark,base,levels:4}).map((color,i)=>
+      h("span",{key:i,style:{background:color}})));
+}
+
+function Select({s,set,name,label,options,format,optionPreview}){
   const id="c-"+name;
+  const menuId=id+"-menu";
+  const wrapRef=useRef(null);
+  const triggerRef=useRef(null);
+  const itemRefs=useRef([]);
+  const selectedIndex=Math.max(0,options.indexOf(s[name]));
+  const [open,setOpen]=useState(false);
+  const [activeIndex,setActiveIndex]=useState(selectedIndex);
+  const [placement,setPlacement]=useState("bottom");
+  const display=o=>format?format(o):o;
+
+  // Keep the custom menu dismissible without stealing focus from other controls.
+  useEffect(()=>{
+    if(!open) setActiveIndex(selectedIndex);
+  },[open,selectedIndex]);
+
+  useEffect(()=>{
+    if(!open) return;
+    const onPointerDown=e=>{
+      if(!wrapRef.current?.contains(e.target)) setOpen(false);
+    };
+    const onFocusIn=e=>{
+      if(!wrapRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown",onPointerDown);
+    document.addEventListener("focusin",onFocusIn);
+    return ()=>{
+      document.removeEventListener("pointerdown",onPointerDown);
+      document.removeEventListener("focusin",onFocusIn);
+    };
+  },[open]);
+
+  // Keep a long menu inside the viewport, especially in the sticky sidebar.
+  useEffect(()=>{
+    if(!open) return;
+    const updatePlacement=()=>{
+      const rect=wrapRef.current?.getBoundingClientRect();
+      if(!rect) return;
+      const estimatedHeight=Math.min(280,8+options.length*36);
+      const roomBelow=window.innerHeight-rect.bottom;
+      const roomAbove=rect.top;
+      setPlacement(roomBelow<estimatedHeight&&roomAbove>roomBelow?"top":"bottom");
+    };
+    updatePlacement();
+    window.addEventListener("resize",updatePlacement);
+    return ()=>window.removeEventListener("resize",updatePlacement);
+  },[open,options.length]);
+
+  // A shadcn-style menu gives keyboard users a focused item, not a browser popup.
+  useEffect(()=>{
+    if(open) itemRefs.current[activeIndex]?.focus();
+  },[open,activeIndex]);
+
+  const close=restoreFocus=>{
+    setOpen(false);
+    if(restoreFocus) requestAnimationFrame(()=>triggerRef.current?.focus());
+  };
+  const openMenu=()=>{
+    setActiveIndex(selectedIndex);
+    setOpen(true);
+  };
+  const move=delta=>setActiveIndex(i=>(i+delta+options.length)%options.length);
+  const choose=option=>{
+    set(name,option);
+    close(true);
+  };
+  const onTriggerKeyDown=e=>{
+    if(e.key==="Enter"||e.key===" "||e.key==="ArrowDown"||e.key==="ArrowUp"){
+      e.preventDefault();
+      openMenu();
+    }
+  };
+  const onMenuKeyDown=e=>{
+    switch(e.key){
+      case "ArrowDown": e.preventDefault(); move(1); break;
+      case "ArrowUp": e.preventDefault(); move(-1); break;
+      case "Home": e.preventDefault(); setActiveIndex(0); break;
+      case "End": e.preventDefault(); setActiveIndex(options.length-1); break;
+      case "Enter":
+      case " ": e.preventDefault(); choose(options[activeIndex]); break;
+      case "Escape": e.preventDefault(); close(true); break;
+      case "Tab": setOpen(false); break;
+    }
+  };
+
   return h(Field,{label,htmlFor:id},
-    h("div",{className:"select-wrap"},
-      h("select",{id,className:"select",value:s[name],
-        onChange:e=>set(name,e.target.value)},
-        options.map(o=>h("option",{key:o,value:o},format?format(o):o))),
-      h("span",{className:"select-chevron"},h(Icon,{name:"chevron",size:15,stroke:1.5}))));
+    h("div",{className:"select-wrap",ref:wrapRef,"data-open":open,"data-placement":placement},
+      h("button",{id,ref:triggerRef,type:"button",className:"select",
+        "aria-haspopup":"menu","aria-expanded":open,"aria-controls":menuId,
+        "aria-label":label+": "+display(s[name]),
+        onClick:()=>open?close(true):openMenu(),onKeyDown:onTriggerKeyDown},
+        display(s[name]),
+        h("span",{className:"select-chevron"},h(Icon,{name:"chevron",size:15,stroke:1.5}))),
+      open?h("div",{id:menuId,className:"select-menu",role:"menu","aria-label":label,
+        onKeyDown:onMenuKeyDown},
+        options.map((o,i)=>{
+          const selected=o===s[name];
+          return h("button",{key:o,type:"button",className:"select-option",
+            role:"menuitemradio","aria-checked":selected,tabIndex:-1,
+            "data-selected":selected,"data-highlighted":i===activeIndex,
+            ref:el=>{itemRefs.current[i]=el;},
+            onClick:()=>choose(o)},
+            h("span",{className:"select-option-content"},
+              optionPreview?optionPreview(o):null,
+              h("span",null,display(o))),
+            selected?h("span",{className:"select-option-check","aria-hidden":"true"},h(Icon,{name:"check",size:14,stroke:2})):null);
+        })):null));
 }
 
 const toHex=({r,g,b})=>"#"+[r,g,b].map(c=>Math.round(c).toString(16).padStart(2,"0")).join("");
@@ -838,11 +1065,21 @@ function CopyButton({text,label="Copy",className="btn"}){
 }
 
 /* --- Code sample ---------------------------------------------------------- */
-function snippet(s,empty,ground,colors){
-  const { tag, lines } = GRAPHS[s.graph].code(s);
+function snippet(s,empty,ground,colors,stride){
+  const recipe = GRAPHS[s.graph].code(s,{stride});
+  const { setup=[], lines } = recipe;
+  const tag=s.dimension==="3d"?recipe.tag+"3D":recipe.tag;
   const p=[...lines];
-  if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
-  if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
+  if(s.dimension==="3d"){
+    p.push(`  shape="${s.shape3d}"`, `  blockStyle="${s.blockStyle}"`, `  maxHeight={${s.maxHeight}}`);
+    p.push(`  yaw={${Math.round(s.yaw*100)/100}}`, `  pitch={${Math.round(s.pitch*100)/100}}`, `  zoom={${Math.round(s.zoom)/100}}`);
+    if(s.theme3d!=="green")p.push(`  theme="${s.theme3d}"`);
+    if(s.material!=="solid")p.push(`  material="${s.material}"`);
+    if(s.animation!=="none")p.push(`  animation="${s.animation}"`);
+  } else {
+    if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
+    if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
+  }
   if(s.scale!=="quantile")p.push(`  scale="${s.scale}"`);
   if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
   if(s.gap!==3)p.push(`  gap={${s.gap}}`);
@@ -853,14 +1090,30 @@ function snippet(s,empty,ground,colors){
     const opts=`{ levels: ${s.levels}`+(ground===GROUND_LIGHT?"":`, ground: "${ground}"`)+" }";
     p.push(`  colors={deriveRamp("${s.base}", ${opts})}`);
   }
-  // The component's own default is the green preset at its natural length, so
-  // that is the only case where the colours can go unstated.
-  else if(s.ramp!=="green"||s.levels!==RAMPS.green.length){
+  // The component's own default is the GitHub preset at its natural light
+  // length, so that is the only case where the colours can go unstated.
+  else if(s.ramp!=="green"||s.levels!==RAMPS.green.light.length||(ground===GROUND_DARK&&(s.dimension!=="3d"||s.theme3d==="green"))){
+    p.push(`  // ${RAMPS[s.ramp].label} palette`);
     p.push(`  colors={${JSON.stringify(colors)}}`);
   }
-  if(empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
+  if(s.dimension!=="3d"&&s.showValues){
+    p.push("  cellContent={(cell) => cell.known && cell.value > 0 ? cell.value : null}");
+  }
+  if(empty!==EMPTY_LIGHT&&!(s.dimension==="3d"&&s.empty===null&&s.theme3d!=="green"))p.push(`  emptyColor="${empty}"`);
+  if(s.theme!=="system")p.push(`  data-heatmap-theme="${s.theme}"`);
   if(s.showLegend)p.push("  showLegend");
-  return `<${tag}\n${p.join("\n")}\n/>`;
+
+  const named=[tag];
+  if(s.ramp===CUSTOM) named.push("deriveRamp");
+  return [
+    `import { ${named.join(", ")} } from "@tb962/heatmap-ui";`,
+    'import "@tb962/heatmap-ui/styles.css";',
+    "",
+    ...(setup.length?[...setup,""]:[]),
+    `<${tag}`,
+    ...p,
+    "/>",
+  ].join("\n");
 }
 
 /** Tracks the OS setting so "system" can resolve to a concrete palette. */
@@ -890,6 +1143,27 @@ function suppressTransitions(){
   requestAnimationFrame(()=>requestAnimationFrame(()=>style.remove()));
 }
 
+/**
+ * Label arrays are declared in full when they are short enough to stay
+ * readable, and named with their type when they are not. Truncating a literal
+ * would produce code that looks runnable and is not.
+ */
+function declare(name, items){
+  return items.length <= 12
+    ? `const ${name} = ${JSON.stringify(items)};`
+    : `// ${name}: string[] — ${items.length} entries, e.g. ${JSON.stringify(items.slice(0,3)).slice(1,-1)} …`;
+}
+function columnLabelDecl(name, entries){
+  if (entries.length > 12) return `// ${name}: { column: number; text: string }[] — ${entries.length} entries`;
+  const step = entries.length > 1 ? entries[1].column - entries[0].column : 1;
+  const offset = entries[0]?.column ?? 0;
+  if(offset!==0) return `const ${name} = ${JSON.stringify(entries)};`;
+  const index = step === 1 ? "column" : `column: i * ${step}`;
+  const args = step === 1 ? "(text, column)" : "(text, i)";
+  const body = step === 1 ? "({ column, text })" : `({ ${index}, text })`;
+  return `const ${name} = ${JSON.stringify(entries.map(e => e.text))}\n  .map(${args} => ${body});`;
+}
+
 /* --- Graph registry --------------------------------------------------------
  * Each entry owns its data, its labels, the controls that only make sense for
  * it, and the code it would take to write by hand. Everything else — shape,
@@ -909,7 +1183,7 @@ const GRAPHS = {
       h(Switch, { key: "days", s, set, name: "showWeekdays", label: "Weekday labels" }),
     ],
     view: ({ s, common, themeAttr, days }) => h(CalendarHeatmap, {
-      values: days, weeks: s.weeks, unitLabel: "events",
+      values: days, to:"2026-09-07", weeks: s.weeks, unitLabel: "events",
       weekStart: WEEK_START[s.weekStart],
       showMonthLabels: s.showMonths, showWeekdayLabels: s.showWeekdays,
       "data-heatmap-theme": themeAttr,
@@ -917,11 +1191,18 @@ const GRAPHS = {
       ...common,
     }),
     code: s => {
-      const lines = ["  values={days}", `  weeks={${s.weeks}}`];
+      const lines = ["  values={days}", '  to="2026-09-07"', `  weeks={${s.weeks}}`];
       if (s.weekStart !== "Sunday") lines.push(`  weekStart={${WEEK_START[s.weekStart]}}`);
       if (!s.showMonths) lines.push("  showMonthLabels={false}");
       if (s.showWeekdays) lines.push("  showWeekdayLabels");
-      return { tag: "CalendarHeatmap", lines };
+      lines.push('  unitLabel="events"');
+      lines.push("  tooltip={(cell) =>");
+      lines.push("    cell.known ? `${cell.date}: ${cell.value} events` : `${cell.date}: no data`}");
+      return {
+        tag: "CalendarHeatmap",
+        setup: ['// days: { date: "2026-09-07", value: 12, known?: false }[]'],
+        lines,
+      };
     },
   },
 
@@ -941,7 +1222,22 @@ const GRAPHS = {
       tooltip: c => `${String(c.row).padStart(2, "0")}:00 — ${c.value}`,
       "data-heatmap-theme": themeAttr, ...common,
     }),
-    code: () => ({ tag: "Heatmap", lines: ["  rows={24}", "  columns={7}", "  values={commits}"] }),
+    code: (s, ctx) => {
+      const setup = ["// commits: number[24][7] — hours down, weekdays across"];
+      const lines = ["  rows={24}", "  columns={7}", "  values={commits}"];
+      if (s.showHours) {
+        setup.push("const hourLabels = Array.from({ length: 24 }, (_, i) =>\n  i % 6 === 0 ? `${i}:00` : \"\");");
+        lines.push("  rowLabels={hourLabels}");
+      }
+      if (s.showDays) {
+        setup.push(columnLabelDecl("dayLabels", weekdayLabels(ctx.stride)));
+        lines.push("  columnLabels={dayLabels}");
+      }
+      lines.push('  ariaLabel="Commits by hour and weekday"');
+      lines.push("  cellLabel={(cell) => `${cell.row}:00 on day ${cell.column}: ${cell.value}`}" );
+      lines.push("  tooltip={(cell) => `${String(cell.row).padStart(2, \"0\")}:00 — ${cell.value}`}");
+      return { tag: "Heatmap", setup, lines };
+    },
   },
 
   cohort: {
@@ -964,10 +1260,24 @@ const GRAPHS = {
       tooltip: c => `Week ${c.column} — ${c.value}% retained`,
       "data-heatmap-theme": themeAttr, ...common,
     }),
-    code: s => ({ tag: "Heatmap", lines: [
-      `  rows={${s.cohorts}}`, `  columns={${s.horizon}}`, "  values={retention}",
-      `  isSlotHidden={(row, column) => column >= ${s.cohorts} - row}`,
-    ] }),
+    code: (s, ctx) => ({
+      tag: "Heatmap",
+      setup: [
+        "// retention: { row, column, value }[] — one entry per observed week",
+        declare("cohortLabels", Array.from({ length: s.cohorts }, (_, row) =>
+          dayLabel(END - (s.cohorts - 1 - row) * 7 * 86400000))),
+        columnLabelDecl("weekLabels",
+          thinLabels(Array.from({ length: s.horizon }, (_, i) => "W" + i), ctx.stride)),
+      ],
+      lines: [
+        `  rows={${s.cohorts}}`, `  columns={${s.horizon}}`, "  values={retention}",
+        `  isSlotHidden={(row, column) => column >= ${s.cohorts} - row}`,
+        "  rowLabels={cohortLabels}", "  columnLabels={weekLabels}",
+        '  ariaLabel="Retention by signup cohort"',
+        "  cellLabel={(cell) => `Week ${cell.column}: ${cell.value}% retained`}",
+        "  tooltip={(cell) => `Week ${cell.column} — ${cell.value}% retained`}",
+      ],
+    }),
   },
 
   matrix: {
@@ -989,10 +1299,18 @@ const GRAPHS = {
       tooltip: c => `${TOPICS[c.row]} × ${TOPICS[c.column]} — ${c.value}`,
       "data-heatmap-theme": themeAttr, ...common,
     }),
-    code: s => {
+    code: (s, ctx) => {
       const lines = [`  rows={${s.items}}`, `  columns={${s.items}}`, "  values={overlap}"];
       if (s.hideDiagonal) lines.push("  isSlotHidden={(row, column) => row === column}");
-      return { tag: "Heatmap", lines };
+      lines.push("  rowLabels={topics}", "  columnLabels={topicColumns}",
+        '  ariaLabel="Label co-occurrence"',
+        "  cellLabel={(cell) => `${topics[cell.row]} with ${topics[cell.column]}: ${cell.value}`}",
+        "  tooltip={(cell) => `${topics[cell.row]} × ${topics[cell.column]} — ${cell.value}`}");
+      return { tag: "Heatmap", setup: [
+        "// overlap: { row, column, value }[] — symmetric, so value(i,j) === value(j,i)",
+        declare("topics", TOPICS.slice(0, s.items)),
+        columnLabelDecl("topicColumns", thinLabels(TOPICS.slice(0, s.items), ctx.stride)),
+      ], lines };
     },
   },
 
@@ -1015,9 +1333,24 @@ const GRAPHS = {
       tooltip: c => c.known ? `${SERVICES[c.row]} — ${c.value}% up` : `${SERVICES[c.row]} — not monitored`,
       "data-heatmap-theme": themeAttr, ...common,
     }),
-    code: s => ({ tag: "Heatmap", lines: [
-      `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
-    ] }),
+    code: (s, ctx) => ({
+      tag: "Heatmap",
+      setup: [
+        "// uptime: { row, column, value, known }[] — known:false where nothing was collected",
+        declare("services", SERVICES.slice(0, s.services)),
+        columnLabelDecl("dayLabels", thinLabels(
+          Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)),
+          ctx.stride)),
+      ],
+      lines: [
+        `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
+        "  rowLabels={services}", "  columnLabels={dayLabels}",
+        '  ariaLabel="Service uptime by day"',
+        "  cellLabel={(cell) => `${services[cell.row]}: ${cell.known ? cell.value + \"% up\" : \"not monitored\"}`}",
+        "  tooltip={(cell) =>",
+        "    cell.known ? `${services[cell.row]} — ${cell.value}% up` : `${services[cell.row]} — not monitored`}",
+      ],
+    }),
   },
 };
 const GRAPH_NAMES = Object.keys(GRAPHS);
@@ -1029,6 +1362,9 @@ const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
 function App(){
   const [s,setS]=useState(DEFAULTS);
   const set=(k,v)=>setS(p=>({...p,[k]:v}));
+  const is3d=s.dimension==="3d";
+  const setCamera=c=>setS(p=>({...p,yaw:c.yaw,pitch:c.pitch,zoom:c.zoom*100}));
+  const resetCamera=()=>setS(p=>({...p,yaw:-35,pitch:38,zoom:100}));
   const days=useMemo(()=>calendarDays(s.weeks),[s.weeks]);
   const systemDark=useSystemDark();
   const themeAttr=s.theme==="system"?undefined:s.theme;
@@ -1038,10 +1374,8 @@ function App(){
   // it stays legible on either ground and never runs short of bands.
   const ground=isDark?GROUND_DARK:GROUND_LIGHT;
   const colors=useMemo(
-    ()=>s.ramp===CUSTOM
-      ?deriveRamp(s.base,{levels:s.levels,ground})
-      :resampleRamp(RAMPS[s.ramp],s.levels),
-    [s.ramp,s.base,s.levels,ground]);
+    ()=>paletteFor(s.ramp,{dark:isDark,base:s.base,levels:s.levels}),
+    [s.ramp,s.base,s.levels,isDark]);
 
   // Until the colour is chosen explicitly, the empty cell follows the theme —
   // a light grey on a dark ground reads as data, not as absence.
@@ -1055,12 +1389,22 @@ function App(){
   },[themeAttr]);
   useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
 
-  const common={shape:s.shape,encode:s.encode,scale:s.scale,cellSize:s.cellSize,
-    gap:s.gap,levels:s.levels,colors,emptyColor:empty,showLegend:s.showLegend};
+  const common={scale:s.scale,cellSize:s.cellSize,
+    gap:s.gap,levels:s.levels,showLegend:s.showLegend,
+    ...(is3d?{shape:s.shape3d,blockStyle:s.blockStyle,maxHeight:s.maxHeight,
+      theme:s.theme3d,material:s.material,animation:s.animation,
+      ...(s.ramp==="green"&&s.levels===RAMPS.green.light.length&&(s.theme3d!=="green"||!isDark)?{}:{colors}),
+      ...(s.empty===null&&s.theme3d!=="green"?{}:{emptyColor:empty}),
+      yaw:s.yaw,pitch:s.pitch,zoom:s.zoom/100,onCameraChange:setCamera}
+      :{colors,emptyColor:empty,shape:s.shape,encode:s.encode,
+        ...(s.showValues?{cellContent:c=>c.known&&c.value>0?c.value:null}: {})})};
 
   const graph=GRAPHS[s.graph];
   const stride=s.cellSize+s.gap;
   const ctx={s,common,themeAttr,days,stride};
+  const code=snippet(s,empty,ground,colors,stride);
+  const flatView=graph.view(ctx);
+  const chart=is3d?h(s.graph==="calendar"?CalendarHeatmap3D:Heatmap3D,flatView.props):flatView;
 
   return h("div",{className:"shell"},
     h("aside",{className:"sidebar"},
@@ -1068,12 +1412,10 @@ function App(){
         h("div",{className:"brand"},
           h("div",{className:"brand-mark"},h(BrandMark)),
           h("div",null,
-            h("div",{className:"brand-name"},"heatmap-ui"),
-            h("p",{className:"brand-sub"},"Any grid. Honest gaps.")),
+            h("div",{className:"brand-name"},"heatmap-ui")),
           h("span",{className:"badge",style:{marginLeft:"auto"}},"v0.1.0"))),
 
       h("div",{...enter(1),className:"group enter"},
-        h("h2",{className:"group-title"},"Theme"),
         h(Tabs,{value:s.theme,label:"Theme",onChange:v=>set("theme",v),options:[
           {value:"system",label:"System",icon:"monitor"},
           {value:"light",label:"Light",icon:"sun"},
@@ -1091,24 +1433,51 @@ function App(){
 
       h("div",{...enter(3),className:"group enter"},
         h("h2",{className:"group-title"},"Cells"),
-        h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES}),
-        h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
+        is3d?h(Select,{s,set,name:"shape3d",label:"Shape",options:SHAPES_3D,
+          format:k=>k.charAt(0).toUpperCase()+k.slice(1)}):h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES,
+          optionPreview:shape=>h(ShapePreview,{shape})}),
+        is3d?h("div",{className:"material-options",role:"group","aria-label":"Block style"},
+          MATERIALS.map(m=>h("button",{key:m.value,type:"button",className:"material",
+            "aria-pressed":s.blockStyle===m.value,onClick:()=>set("blockStyle",m.value)},
+            h(MaterialPreview,{kind:m.value}),m.label))):
+          h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
+        is3d?h(Select,{s,set,name:"theme3d",label:"3D theme",options:THEMES_3D}):null,
+        is3d?h(Select,{s,set,name:"material",label:"Surface",options:SURFACE_MATERIALS,
+          format:k=>k==="pattern"?"Bitmap pattern":"Solid fill"}):null,
+        is3d?h(Select,{s,set,name:"animation",label:"Entrance",options:ANIMATIONS_3D,
+          format:k=>k==="grow"?"Grow":"None"}):null,
         h(Slider,{s,set,name:"cellSize",label:"Size",min:6,max:30,suffix:"px"}),
-        h(Slider,{s,set,name:"gap",label:"Gap",min:0,max:10,suffix:"px"})),
+        h(Slider,{s,set,name:"gap",label:"Gap",min:0,max:10,suffix:"px"}),
+        is3d?h(Slider,{s,set,name:"maxHeight",label:"Height",min:10,max:150}):null),
+
+      is3d?h(React.Fragment,null,
+        h("hr",{className:"separator"}),
+        h("div",{className:"group"},
+          h("h2",{className:"group-title"},"Camera"),
+          h("div",{className:"camera-presets",role:"group","aria-label":"Camera presets"},
+            CAMERA_PRESETS.map(p=>h("button",{key:p.label,type:"button",className:"camera-preset",
+              "aria-pressed":Math.abs(s.yaw-p.yaw)<1&&Math.abs(s.pitch-p.pitch)<1,
+              onClick:()=>setS(prev=>({...prev,yaw:p.yaw,pitch:p.pitch,zoom:100}))},p.label))),
+          h(Slider,{s,set,name:"yaw",label:"Rotation",min:-180,max:180,suffix:"°"}),
+          h(Slider,{s,set,name:"pitch",label:"Tilt",min:15,max:75,suffix:"°"}),
+          h(Slider,{s,set,name:"zoom",label:"Zoom",min:55,max:200,suffix:"%"}))):null,
 
       h("hr",{className:"separator"}),
 
       h("div",{...enter(4),className:"group enter"},
-        h("h2",{className:"group-title"},"Scale"),
+        h("h2",{className:"group-title"},is3d?"Colour scale":"Scale"),
         h(Select,{s,set,name:"scale",label:"Scale",options:["quantile","linear","log"]}),
-        h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8})),
+        h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8}),
+        is3d?h("p",{className:"field-note"},"Height is linear: twice the value, twice as tall. Colour bands are independent."):null),
 
       h("hr",{className:"separator"}),
 
       h("div",{...enter(5),className:"group enter"},
         h("h2",{className:"group-title"},"Colour"),
         h("div",{className:"field-stack"},
-          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES}),
+          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES,
+            format:k=>k===CUSTOM?"Custom":RAMPS[k].label,
+            optionPreview:ramp=>h(RampPreview,{ramp,dark:isDark,base:s.base})}),
           s.ramp===CUSTOM?h(Field,{label:"Base",htmlFor:"c-base"},
             h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
           h("div",{className:"ramp","aria-hidden":"true"},
@@ -1122,6 +1491,7 @@ function App(){
 
       h("div",{...enter(6),className:"group enter"},
         h("h2",{className:"group-title"},"Labels"),
+        !is3d?h(Switch,{s,set,name:"showValues",label:"Values"}):null,
         h(Switch,{s,set,name:"showLegend",label:"Legend"})),
 
       h("div",enter(7,{marginTop:"auto",paddingTop:"8px"}),
@@ -1131,41 +1501,40 @@ function App(){
 
     h("main",{className:"stage"},
       h("header",enter(0),
-        h("h1",{className:"page-title"},"Playground"),
+        h("div",{className:"page-heading"},
+          h("div",null,
+            h("h1",{className:"page-title"},"Playground"),
+            h("p",{className:"page-desc"},is3d?"Give your data a little perspective.":"Every cell tells a story.")),
+          h(DimensionSwitch,{value:s.dimension,onChange:v=>set("dimension",v)})),
         h("p",{className:"page-desc"},
-          "A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps. Every control writes straight into the props below."),
+          is3d?"Explore familiar grids in three dimensions. Sculpt the cells, find your angle, and make the patterns stand out.":"A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps."),
         h("div",{className:"install"},
           h("code",null,"npm i @tb962/heatmap-ui"),
           h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
 
-      h("section",{...enter(1),className:"card enter"},
+      h("section",{...enter(1),className:"card enter"+(is3d?" three-card":"")},
         h("div",{className:"card-head"},
           h("div",null,
-            h("h2",{className:"card-title"},graph.label),
-            h("p",{className:"card-desc"},graph.description)),
-          h("span",{className:"badge"},graph.badge(s))),
-        h("div",{className:"card-body"},graph.view(ctx))),
+            is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
+            h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
+            h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
+          h("div",{className:"chart-view-actions"},
+            h("span",{className:"badge"},graph.badge(s)),
+            is3d?h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view"):null)),
+        h("div",{className:"card-body"},chart),
+        is3d?h("div",{className:"chart-status"},
+          h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
+          h("span",null,"Drag to orbit · + / − to zoom"),
+          h("span",null,h("strong",null,Math.round(s.yaw)+"°")," / ",Math.round(s.pitch)+"°")):null),
 
       h("section",{...enter(2),className:"card enter"},
         h("div",{className:"card-head"},
           h("div",null,
-            h("h2",{className:"card-title"},"Every shape"),
-            h("p",{className:"card-desc"},"Same data, same scale — geometry is a prop.")),
-          h("span",{className:"badge"},SHAPES.length+" shapes")),
-        h("div",{className:"card-body"},
-          h("div",{className:"shapes"},SHAPES.map(shape=>
-            h("figure",{key:shape},
-              h(Heatmap,{rows:7,columns:10,
-                values:days.slice(-70).map((d,i)=>({row:i%7,column:Math.floor(i/7),value:d.value,known:d.known!==false})),
-                ...common,shape,cellSize:14,showLegend:false,"data-heatmap-theme":themeAttr}),
-              h("figcaption",null,shape)))))),
-
-      h("section",{...enter(3),className:"card enter"},
-        h("div",{className:"card-head"},
-          h("div",null,
-            h("h2",{className:"card-title"},"Your settings, as code")),
-          h(CopyButton,{text:snippet(s,empty,ground,colors)})),
-        h("pre",{className:"code"},snippet(s,empty,ground,colors)))));
+            h("h2",{className:"card-title"},"This exact chart, as code"),
+            h("p",{className:"card-desc"},
+              "Every prop above is in effect. Only the data is yours — its shape is in the first comment.")),
+          h(CopyButton,{text:code})),
+        h("pre",{className:"code"},code))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 </script>

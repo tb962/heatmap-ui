@@ -140,6 +140,20 @@ test("cells are only focusable when they carry information", () => {
   assert.match(labelled, /tabindex="0"/);
 });
 
+test("cell content sits inside the shape without replacing accessible labels", () => {
+  const html = render(Heatmap, {
+    rows: 1,
+    columns: 2,
+    values: [[1, 100]],
+    cellContent: (cell) => cell.value,
+    cellLabel: (cell) => `Count ${cell.value}`,
+  });
+  assert.equal((html.match(/heatmap__cell-content/g) || []).length, 2);
+  assert.equal((html.match(/aria-hidden="true"/g) || []).length, 2);
+  assert.match(html, /Count 1/);
+  assert.match(html, /Count 100/);
+});
+
 test("bar cells scale their height with the level", () => {
   const html = render(Heatmap, {
     rows: 1, columns: 3, shape: "bar", cellSize: 20,
