@@ -13,6 +13,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./static-svg": {
+      "types": "./dist/static-svg.d.ts",
+      "import": "./dist/static-svg.js",
+      "default": "./dist/static-svg.js"
+    },
     "./styles.css": "./src/styles.css",
     "./package.json": "./package.json"
   },
