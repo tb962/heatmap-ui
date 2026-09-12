@@ -177,3 +177,114 @@
     transform: none;
   }
 }
+
+/* Three-dimensional charts share the colour ramp and tooltip tokens with the
+ * flat grid. Neutral architecture lets the data provide the colour. */
+.heatmap3d {
+  --heatmap3d-floor: #f1f3f1;
+  --heatmap3d-floor-edge: #d5ddd7;
+  --heatmap3d-grid: #d6dfd7;
+  --heatmap3d-ink: #77847c;
+  --heatmap3d-window: #f7fff5;
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.heatmap3d__scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  max-height: 560px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.heatmap3d__scene[data-interactive="true"] { cursor: grab; touch-action: none; }
+.heatmap3d__scene[data-dragging="true"] { cursor: grabbing; }
+.heatmap3d__scene:focus-visible { outline: 2px solid var(--heatmap3d-ink); outline-offset: -3px; border-radius: 12px; }
+.heatmap3d__floor-edge { fill: var(--heatmap3d-floor-edge); }
+.heatmap3d__floor-surface { fill: var(--heatmap3d-floor); stroke: var(--heatmap3d-floor-edge); stroke-width: 0.7; }
+.heatmap3d__grid-line { fill: none; stroke: var(--heatmap3d-grid); stroke-width: 0.45; opacity: 0.7; }
+.heatmap3d__contact-shadow { fill: #173b29; opacity: 0.13; }
+.heatmap3d__surface { stroke: #ffffff30; stroke-width: 0.4; stroke-linejoin: round; }
+.heatmap3d__window { fill: var(--heatmap3d-window); }
+.heatmap3d__roof { fill: #123221; fill-opacity: 0.11; stroke: #ffffff70; stroke-width: 0.45; stroke-linejoin: round; pointer-events: none; }
+.heatmap3d__unknown { stroke: var(--heatmap3d-ink); stroke-width: 0.7; stroke-dasharray: 2 1.8; pointer-events: all; }
+.heatmap3d__cell { outline: none; }
+.heatmap3d__cell[role="button"] { cursor: pointer; }
+.heatmap3d__cell[data-active="true"] .heatmap3d__surface,
+.heatmap3d__cell:focus-visible .heatmap3d__surface { stroke: #fff; stroke-width: 1.15; }
+.heatmap3d__cell[data-active="true"] .heatmap3d__unknown,
+.heatmap3d__cell:focus-visible .heatmap3d__unknown { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: none; }
+.heatmap3d__cell:focus-visible { filter: drop-shadow(0 0 1px var(--heatmap3d-ink)); }
+.heatmap3d__axis line { stroke: var(--heatmap3d-ink); stroke-width: 0.6; opacity: 0.65; }
+.heatmap3d__axis text, .heatmap3d__labels text { fill: var(--heatmap3d-ink); font-family: inherit; font-size: 8px; }
+.heatmap3d__labels, .heatmap3d__axis { pointer-events: none; }
+.heatmap3d .heatmap3d__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  bottom: auto;
+  right: auto;
+  padding: 9px 12px;
+  border-radius: 9px;
+  transform: translate(-50%, calc(-100% - 14px));
+}
+.heatmap3d .heatmap3d__tooltip[data-align="start"] { transform: translate(0, calc(-100% - 14px)); }
+.heatmap3d .heatmap3d__tooltip[data-align="end"] { transform: translate(-100%, calc(-100% - 14px)); }
+.heatmap3d__tooltip strong { font-size: 17px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.heatmap3d__tooltip-label { opacity: 0.7; font-size: 10px; }
+.heatmap3d__controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--heatmap3d-ink) 18%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--heatmap3d-floor) 90%, transparent);
+  backdrop-filter: blur(8px);
+}
+.heatmap3d__controls button {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--heatmap3d-ink);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.heatmap3d__controls button:hover { background: color-mix(in srgb, var(--heatmap3d-ink) 10%, transparent); }
+.heatmap3d__controls button:disabled { opacity: 0.35; cursor: default; }
+.heatmap3d__controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.heatmap3d__reset svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.heatmap3d__legend { justify-content: center; padding: 4px 0 10px; }
+.heatmap3d__legend .heatmap__legend-swatch { width: 9px; height: 9px; border-radius: 2px; }
+.heatmap3d__legend-unknown-swatch { width: 9px; height: 9px; border: 1px dashed var(--heatmap3d-ink); border-radius: 2px; }
+.heatmap3d__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.heatmap3d[data-heatmap-theme="dark"] {
+  --heatmap3d-floor: #232b26;
+  --heatmap3d-floor-edge: #38463c;
+  --heatmap3d-grid: #48584c;
+  --heatmap3d-ink: #a2b1a5;
+}
+@media (prefers-color-scheme: dark) {
+  .heatmap3d:not([data-heatmap-theme="light"]) {
+    --heatmap3d-floor: #232b26;
+    --heatmap3d-floor-edge: #38463c;
+    --heatmap3d-grid: #48584c;
+    --heatmap3d-ink: #a2b1a5;
+  }
+}
+@media (pointer: coarse) {
+  .heatmap3d__controls button { min-width: 44px; height: 44px; }
+}

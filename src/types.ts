@@ -107,3 +107,29 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
   ariaLabel?: string;
   style?: CSSProperties;
 };
+
+export type Heatmap3DShape = "rectangle" | "circle" | "bar";
+export type Heatmap3DBlockStyle = "solid" | "lego" | "building";
+export type Heatmap3DCamera = { yaw: number; pitch: number; zoom: number };
+
+/** Heights encode actual values linearly, independently of the colour bands. */
+export type Heatmap3DProps = Omit<HeatmapProps, "shape" | "encode" | "radius" | "minScale"> & {
+  shape?: Heatmap3DShape;
+  blockStyle?: Heatmap3DBlockStyle;
+  /** Maximum elevation in grid units. Defaults to 100. */
+  maxHeight?: number;
+  /** Defaults to [0, largest positive value]. Values outside the domain clamp.
+   * Negative values remain labelled but are drawn flat at the zero plane. */
+  heightDomain?: readonly [number, number];
+  /** Horizontal orbit in degrees. Defaults to -35. */
+  yaw?: number;
+  /** Elevation in degrees, clamped to 15–75. Defaults to 38. */
+  pitch?: number;
+  /** Magnification, clamped to 0.55–2. Defaults to 1. */
+  zoom?: number;
+  onCameraChange?: (camera: Heatmap3DCamera) => void;
+  /** Drag to orbit; focus the chart and use arrows to rotate, +/- to zoom. */
+  interactive?: boolean;
+  /** Displays zoom and reset buttons. Defaults to true. */
+  showControls?: boolean;
+};

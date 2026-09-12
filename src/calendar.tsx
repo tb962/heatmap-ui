@@ -3,7 +3,8 @@
 import { useMemo, type ReactNode } from "react";
 
 import { Heatmap } from "./heatmap.js";
-import type { HeatmapCell, HeatmapProps, ResolvedCell } from "./types.js";
+import { Heatmap3D } from "./heatmap3d.js";
+import type { Heatmap3DProps, HeatmapCell, HeatmapProps, ResolvedCell } from "./types.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTHS = [
@@ -21,10 +22,7 @@ export type CalendarDay = {
   meta?: unknown;
 };
 
-export type CalendarHeatmapProps = Omit<
-  HeatmapProps,
-  "rows" | "columns" | "values" | "rowLabels" | "columnLabels" | "tooltip" | "cellLabel"
-> & {
+type CalendarOptions = {
   values?: ReadonlyArray<CalendarDay>;
   /** Last day shown. Defaults to today. */
   to?: string | Date;
@@ -40,6 +38,14 @@ export type CalendarHeatmapProps = Omit<
   tooltip?: (day: CalendarCell) => ReactNode;
   cellLabel?: (day: CalendarCell) => string;
 };
+
+type CalendarManagedProps =
+  | "rows" | "columns" | "values" | "rowLabels" | "columnLabels" | "tooltip" | "cellLabel";
+
+export type CalendarHeatmapProps = Omit<HeatmapProps, CalendarManagedProps> & CalendarOptions;
+
+/** A calendar whose values rise into 3D columns, bricks or buildings. */
+export type CalendarHeatmap3DProps = Omit<Heatmap3DProps, CalendarManagedProps> & CalendarOptions;
 
 /** A resolved cell with its calendar date attached. */
 export type CalendarCell = ResolvedCell & { date: string };
@@ -62,7 +68,7 @@ function isoKey(date: Date): string {
  * Lays days onto the grid: one column per week, one row per weekday. This is
  * the only place in the package that knows what a date is.
  */
-export function CalendarHeatmap({
+function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap">>({
   values = [],
   to,
   weeks = 53,
@@ -74,7 +80,7 @@ export function CalendarHeatmap({
   tooltip,
   cellLabel,
   ...heatmapProps
-}: CalendarHeatmapProps) {
+}: Props) {
   const end = useMemo(() => toUtcMidnight(to ?? new Date()), [to]);
 
   const { cells, columnLabels, dates, hidden } = useMemo(() => {
@@ -158,32 +164,42 @@ export function CalendarHeatmap({
       )
     : undefined;
 
-  return (
-    <Heatmap
-      rows={7}
-      columns={weeks}
-      values={cells}
-      isSlotHidden={(row, column) => hidden.has(row + ":" + column)}
-      rowLabels={rowLabels}
-      columnLabels={showMonthLabels ? monthLabels : undefined}
-      tooltip={tooltip ? (cell) => tooltip(withDate(cell)) : undefined}
-      cellLabel={(cell) => {
-        const resolved = withDate(cell);
-        if (cellLabel) return cellLabel(resolved);
-        if (!resolved.date) return "";
-        const readable = parseIsoDate(resolved.date).toLocaleDateString("en-US", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          timeZone: "UTC",
-        });
-        if (!resolved.known) return readable + ". No data.";
-        return readable + ". " + resolved.value + (unitLabel ? " " + unitLabel : "");
-      }}
-      {...heatmapProps}
-    />
-  );
+  return {
+    rows: 7,
+    columns: weeks,
+    values: cells,
+    isSlotHidden: (row: number, column: number) => hidden.has(row + ":" + column),
+    rowLabels,
+    columnLabels: showMonthLabels ? monthLabels : undefined,
+    tooltip: tooltip ? (cell: ResolvedCell) => tooltip(withDate(cell)) : undefined,
+    cellLabel: (cell: ResolvedCell) => {
+      const resolved = withDate(cell);
+      if (cellLabel) return cellLabel(resolved);
+      if (!resolved.date) return "";
+      const readable = parseIsoDate(resolved.date).toLocaleDateString("en-US", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      if (!resolved.known) return readable + ". No data.";
+      return readable + ". " + resolved.value + (unitLabel ? " " + unitLabel : "");
+    },
+    ...heatmapProps,
+  };
+}
+
+/** Lays days onto a flat grid, with one column per week. */
+export function CalendarHeatmap(props: CalendarHeatmapProps) {
+  const heatmapProps = useCalendarProps(props);
+  return <Heatmap {...heatmapProps} />;
+}
+
+/** Lays the same calendar onto a rotatable 3D grid, with height encoding value. */
+export function CalendarHeatmap3D(props: CalendarHeatmap3DProps) {
+  const heatmapProps = useCalendarProps(props);
+  return <Heatmap3D {...heatmapProps} />;
 }
 
 export default CalendarHeatmap;
