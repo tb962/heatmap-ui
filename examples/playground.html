@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../src/styles.css" />
+<link rel="stylesheet" href="../src/styles.css?v=3d" />
 <style>
 /* ---------------------------------------------------------------------------
  * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
@@ -292,6 +292,10 @@ body {
   color: var(--foreground);
   box-shadow: 0 10px 30px -12px oklch(0 0 0 / 0.5);
 }
+.select-wrap[data-placement="top"] .select-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
 .select-option {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   width: 100%; min-height: 32px;
@@ -311,6 +315,16 @@ body {
   color: var(--muted-foreground);
 }
 .shape-option-preview-cell { display: block; width: 16px; height: 16px; }
+.ramp-option-preview {
+  display: inline-flex; align-items: center; gap: 3px;
+  width: 45px; height: 20px; flex: none;
+}
+.ramp-option-preview span {
+  width: 9px; height: 9px; flex: none;
+  border-radius: 9999px;
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
 .select-option[data-selected="true"] .shape-option-preview { color: var(--foreground); }
 .select-option:hover,
 .select-option[data-highlighted="true"] { background: var(--accent); }
@@ -608,13 +622,27 @@ const h = React.createElement;
 const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ring"];
 const SHAPES_3D = ["rectangle","circle","bar"];
 const MATERIALS = [{value:"solid",label:"Solid"},{value:"lego",label:"LEGO"},{value:"building",label:"Skyline"}];
+const SURFACE_MATERIALS = ["solid","pattern"];
+const THEMES_3D = ["green","night","seasonal","rainbow"];
+const ANIMATIONS_3D = ["none","grow"];
 const CAMERA_PRESETS = [{label:"Isometric",yaw:-35,pitch:38},{label:"Front",yaw:0,pitch:22},{label:"Top",yaw:0,pitch:75}];
+/* Presentation-only palettes. The package stays neutral and accepts a plain
+ * `colors` array; the playground owns names, light/dark tuning, and previews. */
 const RAMPS = {
-  green:  ["#9be9a8","#40c463","#30a14e","#216e39"],
-  blue:   ["#bfd4f7","#7ea6f0","#3f74e0","#1b4bb8"],
-  violet: ["#ddd0f7","#b79bec","#8b5cf6","#5b2fc4"],
-  amber:  ["#fde8b8","#f8cd6b","#eda52b","#b9740a"],
-  mono:   ["#d9d5cf","#a8a29a","#6f6a62","#33302c"],
+  green:    {label:"GitHub", light:["#9be9a8","#40c463","#30a14e","#216e39"], dark:["#0e4429","#006d32","#26a641","#39d353"]},
+  halloween:{label:"Halloween", light:["#ffedd5","#fdba74","#f97316","#9a3412"], dark:["#431407","#7c2d12","#ea580c","#fb923c"]},
+  winter:   {label:"Winter", light:["#dbeafe","#93c5fd","#3b82f6","#1d4ed8"], dark:["#172554","#1d4ed8","#3b82f6","#93c5fd"]},
+  ocean:    {label:"Ocean", light:["#cffafe","#67e8f9","#06b6d4","#0e7490"], dark:["#082f49","#0369a1","#0ea5e9","#7dd3fc"]},
+  sunset:   {label:"Sunset", light:["#fee2e2","#fca5a5","#ef4444","#991b1b"], dark:["#450a0a","#991b1b","#ef4444","#fca5a5"]},
+  forest:   {label:"Forest", light:["#dcfce7","#86efac","#22c55e","#166534"], dark:["#052e16","#166534","#22c55e","#86efac"]},
+  lavender: {label:"Lavender", light:["#ede9fe","#c4b5fd","#8b5cf6","#6d28d9"], dark:["#2e1065","#6d28d9","#8b5cf6","#c4b5fd"]},
+  cherry:   {label:"Cherry", light:["#ffe4e6","#fda4af","#f43f5e","#9f1239"], dark:["#450a0a","#9f1239","#f43f5e","#fda4af"]},
+  mint:     {label:"Mint", light:["#ccfbf1","#5eead4","#14b8a6","#0f766e"], dark:["#042f2e","#0f766e","#14b8a6","#5eead4"]},
+  coral:    {label:"Coral", light:["#ffedd5","#fdba74","#fb7185","#c2410c"], dark:["#431407","#9a3412","#f97316","#fdba74"]},
+  slate:    {label:"Slate", light:["#e2e8f0","#94a3b8","#64748b","#334155"], dark:["#0f172a","#334155","#64748b","#cbd5e1"]},
+  gold:     {label:"Gold", light:["#fef3c7","#fcd34d","#f59e0b","#92400e"], dark:["#451a03","#78350f","#f59e0b","#fcd34d"]},
+  neon:     {label:"Neon", light:["#cffafe","#67e8f9","#06b6d4","#0891b2"], dark:["#042f2e","#0f766e","#06b6d4","#67e8f9"]},
+  rose:     {label:"Rose", light:["#fce7f3","#f9a8d4","#ec4899","#9d174d"], dark:["#500724","#9d174d","#ec4899","#f9a8d4"]},
 };
 
 const EMPTY_LIGHT = "#ebedf0";
@@ -631,10 +659,11 @@ const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
 
 const DEFAULTS = {
   dimension:"3d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
+  theme3d:"green", material:"solid", animation:"grow",
   yaw:-35, pitch:38, zoom:100,
   shape:"rounded", encode:"color", scale:"quantile",
   cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:null, showLegend:true, theme:"system", base:"#8b5cf6",
+  ramp:"green", empty:null, showLegend:true, showValues:true, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
   weeks:20, weekStart:"Sunday", showMonths:true, showWeekdays:false,
@@ -828,6 +857,20 @@ function ShapePreview({shape}){
       style:{...shapeStyle(shape),...fillStyle(shape,3,4,"currentColor",size)}}));
 }
 
+function paletteFor(name,{dark=false,base="#8b5cf6",levels=4}={}){
+  if(name===CUSTOM){
+    return deriveRamp(base,{levels,ground:dark?GROUND_DARK:GROUND_LIGHT});
+  }
+  const preset=RAMPS[name]||RAMPS.green;
+  return resampleRamp(preset[dark?"dark":"light"],levels);
+}
+
+function RampPreview({ramp,dark,base}){
+  return h("span",{className:"ramp-option-preview","aria-hidden":"true"},
+    paletteFor(ramp,{dark,base,levels:4}).map((color,i)=>
+      h("span",{key:i,style:{background:color}})));
+}
+
 function Select({s,set,name,label,options,format,optionPreview}){
   const id="c-"+name;
   const menuId=id+"-menu";
@@ -837,6 +880,7 @@ function Select({s,set,name,label,options,format,optionPreview}){
   const selectedIndex=Math.max(0,options.indexOf(s[name]));
   const [open,setOpen]=useState(false);
   const [activeIndex,setActiveIndex]=useState(selectedIndex);
+  const [placement,setPlacement]=useState("bottom");
   const display=o=>format?format(o):o;
 
   // Keep the custom menu dismissible without stealing focus from other controls.
@@ -859,6 +903,22 @@ function Select({s,set,name,label,options,format,optionPreview}){
       document.removeEventListener("focusin",onFocusIn);
     };
   },[open]);
+
+  // Keep a long menu inside the viewport, especially in the sticky sidebar.
+  useEffect(()=>{
+    if(!open) return;
+    const updatePlacement=()=>{
+      const rect=wrapRef.current?.getBoundingClientRect();
+      if(!rect) return;
+      const estimatedHeight=Math.min(280,8+options.length*36);
+      const roomBelow=window.innerHeight-rect.bottom;
+      const roomAbove=rect.top;
+      setPlacement(roomBelow<estimatedHeight&&roomAbove>roomBelow?"top":"bottom");
+    };
+    updatePlacement();
+    window.addEventListener("resize",updatePlacement);
+    return ()=>window.removeEventListener("resize",updatePlacement);
+  },[open,options.length]);
 
   // A shadcn-style menu gives keyboard users a focused item, not a browser popup.
   useEffect(()=>{
@@ -898,7 +958,7 @@ function Select({s,set,name,label,options,format,optionPreview}){
   };
 
   return h(Field,{label,htmlFor:id},
-    h("div",{className:"select-wrap",ref:wrapRef,"data-open":open},
+    h("div",{className:"select-wrap",ref:wrapRef,"data-open":open,"data-placement":placement},
       h("button",{id,ref:triggerRef,type:"button",className:"select",
         "aria-haspopup":"menu","aria-expanded":open,"aria-controls":menuId,
         "aria-label":label+": "+display(s[name]),
@@ -1013,6 +1073,9 @@ function snippet(s,empty,ground,colors,stride){
   if(s.dimension==="3d"){
     p.push(`  shape="${s.shape3d}"`, `  blockStyle="${s.blockStyle}"`, `  maxHeight={${s.maxHeight}}`);
     p.push(`  yaw={${Math.round(s.yaw*100)/100}}`, `  pitch={${Math.round(s.pitch*100)/100}}`, `  zoom={${Math.round(s.zoom)/100}}`);
+    if(s.theme3d!=="green")p.push(`  theme="${s.theme3d}"`);
+    if(s.material!=="solid")p.push(`  material="${s.material}"`);
+    if(s.animation!=="none")p.push(`  animation="${s.animation}"`);
   } else {
     if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
     if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
@@ -1027,12 +1090,16 @@ function snippet(s,empty,ground,colors,stride){
     const opts=`{ levels: ${s.levels}`+(ground===GROUND_LIGHT?"":`, ground: "${ground}"`)+" }";
     p.push(`  colors={deriveRamp("${s.base}", ${opts})}`);
   }
-  // The component's own default is the green preset at its natural length, so
-  // that is the only case where the colours can go unstated.
-  else if(s.ramp!=="green"||s.levels!==RAMPS.green.length){
+  // The component's own default is the GitHub preset at its natural light
+  // length, so that is the only case where the colours can go unstated.
+  else if(s.ramp!=="green"||s.levels!==RAMPS.green.light.length||(ground===GROUND_DARK&&(s.dimension!=="3d"||s.theme3d==="green"))){
+    p.push(`  // ${RAMPS[s.ramp].label} palette`);
     p.push(`  colors={${JSON.stringify(colors)}}`);
   }
-  if(empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
+  if(s.dimension!=="3d"&&s.showValues){
+    p.push("  cellContent={(cell) => cell.known && cell.value > 0 ? cell.value : null}");
+  }
+  if(empty!==EMPTY_LIGHT&&!(s.dimension==="3d"&&s.empty===null&&s.theme3d!=="green"))p.push(`  emptyColor="${empty}"`);
   if(s.theme!=="system")p.push(`  data-heatmap-theme="${s.theme}"`);
   if(s.showLegend)p.push("  showLegend");
 
@@ -1089,6 +1156,8 @@ function declare(name, items){
 function columnLabelDecl(name, entries){
   if (entries.length > 12) return `// ${name}: { column: number; text: string }[] — ${entries.length} entries`;
   const step = entries.length > 1 ? entries[1].column - entries[0].column : 1;
+  const offset = entries[0]?.column ?? 0;
+  if(offset!==0) return `const ${name} = ${JSON.stringify(entries)};`;
   const index = step === 1 ? "column" : `column: i * ${step}`;
   const args = step === 1 ? "(text, column)" : "(text, i)";
   const body = step === 1 ? "({ column, text })" : `({ ${index}, text })`;
@@ -1165,6 +1234,7 @@ const GRAPHS = {
         lines.push("  columnLabels={dayLabels}");
       }
       lines.push('  ariaLabel="Commits by hour and weekday"');
+      lines.push("  cellLabel={(cell) => `${cell.row}:00 on day ${cell.column}: ${cell.value}`}" );
       lines.push("  tooltip={(cell) => `${String(cell.row).padStart(2, \"0\")}:00 — ${cell.value}`}");
       return { tag: "Heatmap", setup, lines };
     },
@@ -1204,6 +1274,7 @@ const GRAPHS = {
         `  isSlotHidden={(row, column) => column >= ${s.cohorts} - row}`,
         "  rowLabels={cohortLabels}", "  columnLabels={weekLabels}",
         '  ariaLabel="Retention by signup cohort"',
+        "  cellLabel={(cell) => `Week ${cell.column}: ${cell.value}% retained`}",
         "  tooltip={(cell) => `Week ${cell.column} — ${cell.value}% retained`}",
       ],
     }),
@@ -1233,6 +1304,7 @@ const GRAPHS = {
       if (s.hideDiagonal) lines.push("  isSlotHidden={(row, column) => row === column}");
       lines.push("  rowLabels={topics}", "  columnLabels={topicColumns}",
         '  ariaLabel="Label co-occurrence"',
+        "  cellLabel={(cell) => `${topics[cell.row]} with ${topics[cell.column]}: ${cell.value}`}",
         "  tooltip={(cell) => `${topics[cell.row]} × ${topics[cell.column]} — ${cell.value}`}");
       return { tag: "Heatmap", setup: [
         "// overlap: { row, column, value }[] — symmetric, so value(i,j) === value(j,i)",
@@ -1274,6 +1346,7 @@ const GRAPHS = {
         `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
         "  rowLabels={services}", "  columnLabels={dayLabels}",
         '  ariaLabel="Service uptime by day"',
+        "  cellLabel={(cell) => `${services[cell.row]}: ${cell.known ? cell.value + \"% up\" : \"not monitored\"}`}",
         "  tooltip={(cell) =>",
         "    cell.known ? `${services[cell.row]} — ${cell.value}% up` : `${services[cell.row]} — not monitored`}",
       ],
@@ -1301,10 +1374,8 @@ function App(){
   // it stays legible on either ground and never runs short of bands.
   const ground=isDark?GROUND_DARK:GROUND_LIGHT;
   const colors=useMemo(
-    ()=>s.ramp===CUSTOM
-      ?deriveRamp(s.base,{levels:s.levels,ground})
-      :resampleRamp(RAMPS[s.ramp],s.levels),
-    [s.ramp,s.base,s.levels,ground]);
+    ()=>paletteFor(s.ramp,{dark:isDark,base:s.base,levels:s.levels}),
+    [s.ramp,s.base,s.levels,isDark]);
 
   // Until the colour is chosen explicitly, the empty cell follows the theme —
   // a light grey on a dark ground reads as data, not as absence.
@@ -1319,10 +1390,14 @@ function App(){
   useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
 
   const common={scale:s.scale,cellSize:s.cellSize,
-    gap:s.gap,levels:s.levels,colors,emptyColor:empty,showLegend:s.showLegend,
+    gap:s.gap,levels:s.levels,showLegend:s.showLegend,
     ...(is3d?{shape:s.shape3d,blockStyle:s.blockStyle,maxHeight:s.maxHeight,
+      theme:s.theme3d,material:s.material,animation:s.animation,
+      ...(s.ramp==="green"&&s.levels===RAMPS.green.light.length&&(s.theme3d!=="green"||!isDark)?{}:{colors}),
+      ...(s.empty===null&&s.theme3d!=="green"?{}:{emptyColor:empty}),
       yaw:s.yaw,pitch:s.pitch,zoom:s.zoom/100,onCameraChange:setCamera}
-      :{shape:s.shape,encode:s.encode})};
+      :{colors,emptyColor:empty,shape:s.shape,encode:s.encode,
+        ...(s.showValues?{cellContent:c=>c.known&&c.value>0?c.value:null}: {})})};
 
   const graph=GRAPHS[s.graph];
   const stride=s.cellSize+s.gap;
@@ -1366,6 +1441,11 @@ function App(){
             "aria-pressed":s.blockStyle===m.value,onClick:()=>set("blockStyle",m.value)},
             h(MaterialPreview,{kind:m.value}),m.label))):
           h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
+        is3d?h(Select,{s,set,name:"theme3d",label:"3D theme",options:THEMES_3D}):null,
+        is3d?h(Select,{s,set,name:"material",label:"Surface",options:SURFACE_MATERIALS,
+          format:k=>k==="pattern"?"Bitmap pattern":"Solid fill"}):null,
+        is3d?h(Select,{s,set,name:"animation",label:"Entrance",options:ANIMATIONS_3D,
+          format:k=>k==="grow"?"Grow":"None"}):null,
         h(Slider,{s,set,name:"cellSize",label:"Size",min:6,max:30,suffix:"px"}),
         h(Slider,{s,set,name:"gap",label:"Gap",min:0,max:10,suffix:"px"}),
         is3d?h(Slider,{s,set,name:"maxHeight",label:"Height",min:10,max:150}):null),
@@ -1395,7 +1475,9 @@ function App(){
       h("div",{...enter(5),className:"group enter"},
         h("h2",{className:"group-title"},"Colour"),
         h("div",{className:"field-stack"},
-          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES}),
+          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES,
+            format:k=>k===CUSTOM?"Custom":RAMPS[k].label,
+            optionPreview:ramp=>h(RampPreview,{ramp,dark:isDark,base:s.base})}),
           s.ramp===CUSTOM?h(Field,{label:"Base",htmlFor:"c-base"},
             h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
           h("div",{className:"ramp","aria-hidden":"true"},
@@ -1409,6 +1491,7 @@ function App(){
 
       h("div",{...enter(6),className:"group enter"},
         h("h2",{className:"group-title"},"Labels"),
+        !is3d?h(Switch,{s,set,name:"showValues",label:"Values"}):null,
         h(Switch,{s,set,name:"showLegend",label:"Legend"})),
 
       h("div",enter(7,{marginTop:"auto",paddingTop:"8px"}),
@@ -1433,7 +1516,7 @@ function App(){
         h("div",{className:"card-head"},
           h("div",null,
             is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
-            h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label:"")),
+            h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
             h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
           h("div",{className:"chart-view-actions"},
             h("span",{className:"badge"},graph.badge(s)),

@@ -97,6 +97,8 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
   columnLabels?: ReadonlyArray<{ column: number; text: ReactNode }>;
 
   tooltip?: (cell: ResolvedCell) => ReactNode;
+  /** Optional visual content centred inside a cell. Pair with `cellLabel` for accessible text. */
+  cellContent?: (cell: ResolvedCell) => ReactNode;
   /** Per-cell accessible name. Cells are unlabelled, and unfocusable, without it. */
   cellLabel?: (cell: ResolvedCell) => string;
   onCellClick?: (cell: ResolvedCell) => void;
@@ -111,11 +113,49 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
 export type Heatmap3DShape = "rectangle" | "circle" | "bar";
 export type Heatmap3DBlockStyle = "solid" | "lego" | "building";
 export type Heatmap3DCamera = { yaw: number; pitch: number; zoom: number };
+/** `side` is a convenient alias for patterns; geometry reports left/right. */
+export type Heatmap3DFace = "top" | "side" | "left" | "right";
+export type Heatmap3DThemeName = "green" | "night" | "seasonal" | "rainbow";
+export type Heatmap3DMaterial = "solid" | "pattern";
+export type Heatmap3DAnimation = "none" | "grow";
+
+/**
+ * An SVG bitmap row. Numbers are read from the most-significant bit; strings
+ * may be binary ("0101") or hexadecimal ("0x5"). The row count is the
+ * pattern height, so a compact pattern needs no separate height prop.
+ */
+export type Heatmap3DPattern = {
+  width: number;
+  bitmap: readonly (number | string)[];
+  background?: string;
+  foreground?: string;
+};
+
+export type Heatmap3DFaceColorArgs = {
+  cell: ResolvedCell;
+  face: Heatmap3DFace;
+  color: string;
+  level: number;
+  theme: Heatmap3DThemeName;
+};
+
+/** Override the default top/side material treatment for a cell. */
+export type Heatmap3DFaceColor = (args: Heatmap3DFaceColorArgs) => string;
 
 /** Heights encode actual values linearly, independently of the colour bands. */
-export type Heatmap3DProps = Omit<HeatmapProps, "shape" | "encode" | "radius" | "minScale"> & {
+export type Heatmap3DProps = Omit<HeatmapProps, "shape" | "encode" | "radius" | "minScale" | "cellContent"> & {
   shape?: Heatmap3DShape;
   blockStyle?: Heatmap3DBlockStyle;
+  /** Built-in face palettes and surface treatments. */
+  theme?: Heatmap3DThemeName;
+  /** Solid fills or reusable SVG bitmap fills. */
+  material?: Heatmap3DMaterial;
+  /** Per-face bitmap rows, indexed by level. Missing entries use a built-in pattern. */
+  patterns?: Partial<Record<Heatmap3DFace, readonly Heatmap3DPattern[]>>;
+  /** Resolve a concrete fill separately for top and visible side faces. */
+  faceColor?: Heatmap3DFaceColor;
+  /** Opt-in entrance motion. The reduced-motion variant is supplied by the stylesheet. */
+  animation?: Heatmap3DAnimation;
   /** Maximum elevation in grid units. Defaults to 100. */
   maxHeight?: number;
   /** Defaults to [0, largest positive value]. Values outside the domain clamp.

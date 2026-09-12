@@ -76,7 +76,9 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `unknownOpacity` | `0.5` | Applied to slots with no data. |
 | `isSlotHidden` | — | `(row, column) => boolean` for ragged grids. |
 | `rowLabels`, `columnLabels` | — | Positioned against the grid. |
-| `tooltip`, `cellLabel` | — | `(cell) => ReactNode` / `=> string`. |
+| `tooltip` | — | `(cell) => ReactNode`; opens on hover and focus. |
+| `cellContent` | — | Optional visual React node centred inside each cell. |
+| `cellLabel` | — | `(cell) => string`; the accessible name for a cell. |
 | `onCellClick` | — | Makes cells buttons. |
 | `showLegend` | `false` | less/more key, plus "no data" when relevant. |
 
@@ -112,6 +114,11 @@ tile; missing data is outlined; hidden slots are omitted entirely.
 | --- | --- | --- |
 | `shape` | `"rectangle"` | `"rectangle"`, `"circle"` (cylinder), or `"bar"` (slender column). |
 | `blockStyle` | `"solid"` | `"solid"`, `"lego"` (studs), or `"building"` (windowed facades). |
+| `theme` | `"green"` | `"green"`, `"night"`, `"seasonal"`, or `"rainbow"`; presets include face-aware palette neutrals. |
+| `material` | `"solid"` | `"solid"` or `"pattern"`; pattern material uses SVG bitmap marks over each face. |
+| `patterns` | built-in | Optional `{ top, side }` arrays of `{ width, bitmap, background, foreground }`, indexed by colour level. |
+| `faceColor` | preset shading | `(args) => string` resolver for different top, left, and right fills. |
+| `animation` | `"none"` | `"grow"` adds a staggered entrance; the stylesheet swaps to a no-travel fade for reduced motion. |
 | `maxHeight` | `100` | Maximum elevation in the same grid units as cell size and gap. |
 | `heightDomain` | `[0, largest positive value]` | Fixed numeric domain for comparisons across charts. Out-of-range values clamp. |
 | `yaw`, `pitch`, `zoom` | `-35`, `38`, `1` | Camera orbit, elevation, and magnification. |
@@ -127,6 +134,47 @@ Negative values retain their labels but render at the zero plane; this first
 Drag to orbit. Focus the chart and use arrow keys to rotate, `+` / `-` to
 zoom, or `Home` to reset. Cells expose their values to assistive technology,
 and click handlers also respond to Enter or Space.
+
+### Patterns, themes, and static SVG
+
+The built-in patterns are deliberately small and repeatable. A row can be a
+number, a hexadecimal string, or a binary string, with its most-significant bit
+drawn on the left:
+
+```tsx
+<Heatmap3D
+  rows={1}
+  columns={3}
+  values={[[2, 8, 20]]}
+  theme="night"
+  material="pattern"
+  animation="grow"
+  patterns={{
+    top: [{ width: 4, bitmap: ["1000", "0100", "0010", "0001"] }],
+    side: [{ width: 2, bitmap: ["10", "01"] }],
+  }}
+/>
+```
+
+For an email, README, or scheduled asset, use the same scene without React or
+a DOM:
+
+```ts
+import { renderHeatmap3DSvg } from "@tb962/heatmap-ui";
+
+const svg = renderHeatmap3DSvg({
+  rows: 1,
+  columns: 3,
+  values: [[2, 8, 20]],
+  theme: "seasonal",
+  material: "pattern",
+  showLegend: true,
+});
+```
+
+`renderHeatmap3DSvg` shares the height domain, geometry, face visibility, paint
+order, themes, and pattern definitions with `Heatmap3D`; its output is a
+non-interactive accessible SVG snapshot.
 
 ## Shapes
 
@@ -149,6 +197,26 @@ Colour alone is invisible to roughly one reader in twelve.
 
 `"size"` scales each cell within its slot so intensity survives in greyscale;
 `"both"` encodes it twice. `minScale` sets how small the weakest cell may get.
+
+### Values inside cells
+
+`cellContent` is a visual slot for short values, counts, or other compact
+content. It is deliberately separate from `cellLabel`, so a dense visual can
+still have a complete accessible description:
+
+```tsx
+<Heatmap
+  rows={7}
+  columns={20}
+  values={activity}
+  cellContent={(cell) => cell.known && cell.value > 0 ? cell.value : null}
+  cellLabel={(cell) => cell.known ? `${cell.value} events` : "No data"}
+/>
+```
+
+The content is marked decorative for assistive technology; use `cellLabel` for
+meaning. It is a flat-grid feature. The 3D add-on keeps its values in labels
+and tooltips so it can remain an SVG renderer without an HTML overlay layer.
 
 ## Calendar
 
@@ -293,6 +361,7 @@ layer to fight. The few colours it does define belong to the tooltip:
   --heatmap-tooltip-bg: …;
   --heatmap-tooltip-text: …;
   --heatmap-label: …;
+  --heatmap-cell-content-color: …;
 }
 ```
 
