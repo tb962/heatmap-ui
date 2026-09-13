@@ -94,7 +94,7 @@ export function Heatmap({
         ) : null}
 
         {rowLabels && rowLabels.length > 0 ? (
-          <div className="heatmap__row-labels" style={{ height }}>
+          <div className="heatmap__row-labels" style={{ height, gridAutoRows: rowHeight }}>
             {rowLabels.map((text, index) => (
               <span
                 key={index}
