@@ -26,6 +26,12 @@ test("days beyond the end date are not drawn at all", () => {
   assert.match(html, /No data\./);
 });
 
+test("the calendar defaults to 53 weeks", () => {
+  const html = render(CalendarHeatmap, { to: "2026-09-07", values: [] });
+  // 2026-09-07 is a Monday, so five days in the final week are not drawn.
+  assert.equal((html.match(/heatmap__cell-slot/g) || []).length, 53 * 7 - 5);
+});
+
 test("a day carries an accessible date label", () => {
   const html = render(CalendarHeatmap, {
     to: "2026-09-07",
@@ -108,6 +114,11 @@ test("the core renders any grid, not just seven rows", () => {
   });
   assert.equal((html.match(/heatmap__cell-slot/g) || []).length, 24 * 7);
   assert.match(html, /aria-label="Punchcard"/);
+});
+
+test("cell values are hidden unless visual content is provided", () => {
+  const html = render(Heatmap, { rows: 1, columns: 1, values: [[42]] });
+  assert.ok(!html.includes("heatmap__cell-content"));
 });
 
 test("every shape renders without throwing", () => {

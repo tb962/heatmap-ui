@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../src/styles.css?v=3d" />
+<link rel="stylesheet" href="../src/styles.css?v=4d" />
 <style>
 /* ---------------------------------------------------------------------------
  * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
@@ -52,8 +52,16 @@
   --radius-lg: var(--radius);               /* 10px */
   --radius-xl: calc(var(--radius) + 4px);   /* 14px */
 
+  /* The properties panel's own rails. One label column, one control height,
+   * so every row in every section lines up on the same two edges. */
+  --panel-w: 284px;
+  --panel-pad: 10px;
+  --panel-label: 64px;
+  --ctl-h: 28px;
+
   --focus-ring: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
   --ease-emphasis: cubic-bezier(0.2, 0, 0, 1);
+  --expo-out: linear(0 0%, .1684 2.66%, .3165 5.49%, .446 8.52%, .5581 11.78%, .6535 15.29%, .7341 19.11%, .8011 23.3%, .8557 27.93%, .8962 32.68%, .9283 38.01%, .9529 44.08%, .9711 51.14%, .9833 59.06%, .9915 68.74%, 1 100%);
 }
 
 /* Explicit choice wins in both directions; no attribute means follow the system. */
@@ -102,6 +110,39 @@
   --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
 }
 
+/* The theme effect is the reference's circle-blur reveal from the top left.
+ * The normal state update remains the fallback for browsers without View
+ * Transitions. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition {
+    pointer-events: none;
+  }
+  ::view-transition-group(root) {
+    animation-timing-function: var(--expo-out);
+  }
+  ::view-transition-new(root) {
+    -webkit-mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="0" cy="0" r="18" fill="white" filter="url(%23blur)"/></svg>') left top / 0 auto no-repeat;
+    mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs><circle cx="0" cy="0" r="18" fill="white" filter="url(%23blur)"/></svg>') left top / 0 auto no-repeat;
+    -webkit-mask-origin: content-box;
+    mask-origin: content-box;
+    -webkit-mask-clip: border-box;
+    mask-clip: border-box;
+    transform-origin: left top;
+    animation: theme-transition-scale 400ms ease both;
+  }
+  ::view-transition-old(root) {
+    transform-origin: left top;
+    z-index: -1;
+    animation: theme-transition-scale 400ms ease both;
+  }
+  @keyframes theme-transition-scale {
+    to {
+      -webkit-mask-size: 350vmax auto;
+      mask-size: 350vmax auto;
+    }
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -128,25 +169,382 @@ body {
 }
 
 /* --- Layout ------------------------------------------------------------- */
-.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 100vh; }
+.playground-root { position: relative; min-height: 100vh; }
+.theme-transition-scope { min-height: 100vh; background: var(--background); color: var(--foreground); }
+.shell { display: grid; grid-template-columns: var(--panel-w) minmax(0, 1fr); min-height: 100vh; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
 
+/* --- Properties panel ---------------------------------------------------
+ * A Figma-style inspector: a fixed header, one scrolling column of sections,
+ * and a footer that never scrolls away. Every row snaps to the same two rails
+ * — a label column and a control column — so the eye reads one edge, not six.
+ * ---------------------------------------------------------------------- */
 .sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 20px;
-  border-right: 1px solid var(--border);   /* structure, so it stays a border */
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: calc(100vh - 16px);
+  margin: 8px;
+  border-radius: var(--radius-xl);
   background: var(--card);
-  max-height: 100vh;
-  overflow-y: auto;
+  box-shadow: var(--shadow-border);
   position: sticky;
-  top: 0;
+  top: 8px;
+  overflow: hidden;                   /* clip the sections to the panel radius */
 }
-@media (max-width: 900px) { .sidebar { position: static; max-height: none; } }
-/* The entrance animation leaves each group as its own stacking context. Raise
- * the focused group so its shadcn-style menu can clear later sidebar groups. */
-.sidebar > .enter:focus-within { position: relative; z-index: 40; }
+
+.panel-head {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px var(--panel-pad);
+  border-bottom: 1px solid var(--border);
+}
+.panel-head-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.panel-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent) transparent;
+}
+.panel-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  transition: background-color 150ms ease-out;
+}
+.panel-body::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: padding-box; }
+.panel-body::-webkit-scrollbar-corner { background: transparent; }
+
+.panel-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 7px 7px var(--panel-pad);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.panel-foot .btn { height: 26px; padding-inline: 8px 10px; border-radius: var(--radius-sm); font-size: 11.5px; }
+
+/* --- Section ------------------------------------------------------------ */
+.psec { border-bottom: 1px solid color-mix(in oklch, var(--foreground) 7%, transparent); }
+.psec:last-child { border-bottom: 0; }
+/* The entrance animation leaves each section as its own stacking context.
+ * Raise the focused one so its menu can clear the sections below it. */
+.psec:focus-within { position: relative; z-index: 40; }
+.psec:has(.option-tooltip:hover), .psec:has(.option-tooltip:focus-visible) { position: relative; z-index: 40; }
+
+.psec-head { display: flex; align-items: center; gap: 2px; height: 32px; padding-inline: var(--panel-pad) 6px; }
+.psec-toggle {
+  display: flex; align-items: center; gap: 5px;
+  flex: 1; min-width: 0; height: 26px;
+  margin-inline-start: -5px;          /* optical: the caret hangs into the gutter */
+  padding-inline: 5px 4px;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground);
+  font: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: -0.005em;
+  text-align: start; cursor: pointer;
+}
+.psec-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.psec-caret {
+  display: inline-flex; flex: none;
+  color: var(--muted-foreground);
+  transition-property: rotate, color;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-emphasis);
+}
+.psec[data-open="false"] .psec-caret { rotate: -90deg; }
+.psec-toggle:hover .psec-caret { color: var(--foreground); }
+.psec-dot {
+  width: 5px; height: 5px; flex: none;
+  border-radius: 9999px;
+  background: var(--foreground);
+}
+.psec-action {
+  display: grid; place-items: center;
+  width: 24px; height: 24px; flex: none;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground);
+  cursor: pointer; opacity: 0;
+  transition-property: opacity, background-color, color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.psec-head:hover .psec-action, .psec-action:focus-visible { opacity: 1; }
+.psec-action:hover { background: var(--accent); color: var(--foreground); }
+.psec-action:active { scale: 0.96; }
+.psec-action:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.psec-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition-property: grid-template-rows;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-emphasis);
+}
+.psec[data-open="true"] .psec-panel { grid-template-rows: 1fr; }
+/* Clipping is what makes the collapse read as a collapse, but it would also
+ * cut off a select menu. The zero-length animation drops the clip only once
+ * the section has finished opening, and removing it on close restores it at
+ * the first frame of the collapse. */
+.psec-clip { overflow: hidden; }
+.psec[data-open="true"] .psec-clip { animation: psec-unclip 0s 220ms forwards; }
+@keyframes psec-unclip { to { overflow: visible; } }
+.psec-rows { display: flex; flex-direction: column; gap: 4px; padding: 0 var(--panel-pad) 10px; }
+
+/* --- Inspector row ------------------------------------------------------ */
+.prow {
+  display: grid;
+  grid-template-columns: var(--panel-label) minmax(0, 1fr);
+  align-items: center; gap: 8px;
+  min-height: var(--ctl-h);
+}
+.prow-wide { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.prow-label {
+  font-size: 11px; font-weight: 500; line-height: 1.2;
+  color: var(--muted-foreground);
+  user-select: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+label.prow-label { cursor: pointer; }
+.prow-ctl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.prow-ctl > * { min-width: 0; }
+.prow-split > * { flex: 1 1 0; }
+.prow-end { justify-content: flex-end; }
+.prow:has(> .prow-ctl > .switch) { grid-template-columns: minmax(0, 1fr) auto; }
+.prow:has(> .prow-ctl > .switch) .prow-label { white-space: normal; }
+/* A lone number field keeps the rail rather than stretching across the column. */
+.prow-ctl:not(.prow-split) > .nfield { max-width: 96px; }
+
+.panel-body .select-wrap { width: 100%; }
+.panel-body .select { height: var(--ctl-h); padding: 0 24px 0 8px; border-radius: var(--radius-sm); font-size: 12px; }
+.panel-body .select-chevron { right: 7px; }
+
+/* --- Scrub field --------------------------------------------------------
+ * Figma's number input: type an exact value, nudge it with the arrow keys, or
+ * drag the grip sideways. A slider can only be dragged, and only as finely as
+ * its track is wide — this is smaller on the page and more precise to set.
+ * ---------------------------------------------------------------------- */
+.nfield {
+  display: inline-flex; align-items: center; gap: 1px;
+  width: 100%; height: var(--ctl-h);
+  padding-inline: 2px 7px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: var(--shadow-xs);
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.nfield:hover { border-color: var(--ring); }
+.nfield:focus-within, .nfield[data-scrub="true"] { border-color: var(--ring); box-shadow: var(--focus-ring); }
+.nfield-grip {
+  display: grid; place-items: center;
+  width: 22px; height: 22px; flex: none;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+  cursor: ew-resize;
+  touch-action: none;
+  transition-property: color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.nfield:hover .nfield-grip, .nfield[data-scrub="true"] .nfield-grip { color: var(--foreground); }
+.nfield[data-scrub="true"] .nfield-grip { background: var(--accent); }
+.nfield-input {
+  width: 100%; min-width: 0; height: 100%;
+  padding: 0; border: 0;
+  background: transparent; color: var(--foreground);
+  font: inherit; font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.nfield-input:focus { outline: none; }
+.nfield-unit { flex: none; font-size: 11px; color: var(--muted-foreground); user-select: none; }
+body[data-scrubbing="true"] { cursor: ew-resize; user-select: none; }
+
+/* --- Tile group ---------------------------------------------------------
+ * Sixteen bordered tiles draw sixteen boxes when only one of them matters.
+ * The trough carries the structure; the selected tile lifts out of it, the
+ * same way the theme tabs already work.
+ * ---------------------------------------------------------------------- */
+.tilebox {
+  display: grid; gap: 3px;
+  padding: 3px;                       /* concentric: 8 = 5 + 3 */
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+}
+.tilebox-shape { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.tilebox-ramp {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 2px; padding: 4px 5px;
+}
+.tile {
+  display: grid; place-items: center;
+  min-width: 0; height: 26px;
+  padding: 0; border: 0; border-radius: 5px;
+  background: transparent; color: var(--muted-foreground);
+  cursor: pointer;
+  transition-property: background-color, color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.tile:hover { background: color-mix(in oklch, var(--foreground) 12%, transparent); color: var(--foreground); }
+.tile[aria-pressed="true"] {
+  background: var(--background); color: var(--foreground);
+  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
+}
+.tile:active { scale: 0.96; }
+.tile:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tile .shape-option-preview { width: 16px; height: 16px; }
+.tile .shape-option-preview-cell { width: 13px; height: 13px; }
+.tile-ramp {
+  position: relative;
+  width: 26px; height: 26px; flex: 0 0 26px;
+  padding: 0;
+  border-radius: 9999px;
+}
+.tile-ramp .ramp-option-preview {
+  width: 22px; height: 22px; gap: 0;
+  border-radius: 9999px; overflow: hidden;
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+  background: linear-gradient(135deg, var(--ramp-start) 0 48%, var(--ramp-end) 52% 100%);
+}
+.tile-ramp .ramp-option-preview span { display: none; }
+.tile-ramp[aria-pressed="true"] {
+  background: var(--foreground);
+  box-shadow: none;
+}
+.tile-ramp[aria-pressed="true"] .ramp-option-preview {
+  outline-color: var(--background);
+  outline-offset: -1px;
+}
+.tile-ramp[aria-pressed="true"]:focus-visible { box-shadow: var(--focus-ring); }
+.custom-ramp-option-preview {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border: 2px dotted var(--muted-foreground);
+  border-radius: 9999px;
+}
+.custom-ramp-option-dot {
+  width: 7px; height: 7px;
+  border-radius: 9999px;
+  outline: 1px solid var(--hairline); outline-offset: -1px;
+}
+.tile-ramp:hover .custom-ramp-option-preview,
+.tile-ramp[aria-pressed="true"] .custom-ramp-option-preview { border-color: var(--foreground); }
+.option-tooltip { position: relative; }
+.option-tooltip[data-tooltip]::before,
+.option-tooltip[data-tooltip]::after {
+  position: absolute; z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  transition-property: opacity, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-emphasis);
+}
+.option-tooltip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  left: 50%; bottom: calc(100% + 7px);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card); color: var(--foreground);
+  box-shadow: var(--shadow-border);
+  font-size: 10px; font-weight: 500; line-height: 1.1;
+  width: max-content; max-width: 180px;
+  text-align: center; white-space: normal;
+  translate: -50% 3px; scale: .96;
+}
+.option-tooltip[data-tooltip]::before {
+  content: "";
+  left: 50%; bottom: calc(100% + 3px);
+  width: 8px; height: 8px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 1px;
+  background: var(--card);
+  rotate: 45deg;
+  translate: -50% 50%;
+  scale: .96;
+}
+.option-tooltip[data-tooltip]:hover::before,
+.option-tooltip[data-tooltip]:focus-visible::before { opacity: 1; scale: 1; }
+.option-tooltip[data-tooltip]:hover::after,
+.option-tooltip[data-tooltip]:focus-visible::after {
+  opacity: 1; translate: -50% 0; scale: 1;
+}
+
+/* Keep edge tooltips inside the inspector instead of centering them beyond
+ * the panel rail. Palette rows are eight swatches wide at this density. */
+.cell-segmented > .option-tooltip:first-child[data-tooltip]::after,
+.dimension-switch > .option-tooltip:first-child[data-tooltip]::after,
+.tabs-compact > .option-tooltip:first-child[data-tooltip]::after,
+.tilebox-shape > .option-tooltip:nth-child(8n + 1)[data-tooltip]::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n + 1)[data-tooltip]::after {
+  left: 0; translate: 0 3px;
+}
+.cell-segmented > .option-tooltip:first-child[data-tooltip]:hover::after,
+.cell-segmented > .option-tooltip:first-child[data-tooltip]:focus-visible::after,
+.dimension-switch > .option-tooltip:first-child[data-tooltip]:hover::after,
+.dimension-switch > .option-tooltip:first-child[data-tooltip]:focus-visible::after,
+.tabs-compact > .option-tooltip:first-child[data-tooltip]:hover::after,
+.tabs-compact > .option-tooltip:first-child[data-tooltip]:focus-visible::after,
+.tilebox-shape > .option-tooltip:nth-child(8n + 1)[data-tooltip]:hover::after,
+.tilebox-shape > .option-tooltip:nth-child(8n + 1)[data-tooltip]:focus-visible::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n + 1)[data-tooltip]:hover::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n + 1)[data-tooltip]:focus-visible::after {
+  translate: 0 0;
+}
+.cell-segmented > .option-tooltip:last-child[data-tooltip]::after,
+.dimension-switch > .option-tooltip:last-child[data-tooltip]::after,
+.tabs-compact > .option-tooltip:last-child[data-tooltip]::after,
+.tilebox-shape > .option-tooltip:nth-child(8n)[data-tooltip]::after,
+.tilebox-shape > .option-tooltip:last-child[data-tooltip]::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n)[data-tooltip]::after,
+.tilebox-ramp > .option-tooltip:last-child[data-tooltip]::after {
+  left: auto; right: 0; translate: 0 3px;
+}
+.cell-segmented > .option-tooltip:last-child[data-tooltip]:hover::after,
+.cell-segmented > .option-tooltip:last-child[data-tooltip]:focus-visible::after,
+.dimension-switch > .option-tooltip:last-child[data-tooltip]:hover::after,
+.dimension-switch > .option-tooltip:last-child[data-tooltip]:focus-visible::after,
+.tabs-compact > .option-tooltip:last-child[data-tooltip]:hover::after,
+.tabs-compact > .option-tooltip:last-child[data-tooltip]:focus-visible::after,
+.tilebox-shape > .option-tooltip:nth-child(8n)[data-tooltip]:hover::after,
+.tilebox-shape > .option-tooltip:nth-child(8n)[data-tooltip]:focus-visible::after,
+.tilebox-shape > .option-tooltip:last-child[data-tooltip]:hover::after,
+.tilebox-shape > .option-tooltip:last-child[data-tooltip]:focus-visible::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n)[data-tooltip]:hover::after,
+.tilebox-ramp > .option-tooltip:nth-child(8n)[data-tooltip]:focus-visible::after,
+.tilebox-ramp > .option-tooltip:last-child[data-tooltip]:hover::after,
+.tilebox-ramp > .option-tooltip:last-child[data-tooltip]:focus-visible::after {
+  translate: 0 0;
+}
+
+/* The 3D block styles join the same trough language. */
+.panel-body .material-options {
+  gap: 3px; padding: 3px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+}
+.panel-body .material {
+  min-height: 46px; padding: 3px 2px 4px;
+  border: 0; border-radius: 5px;
+  background: transparent; font-size: 10px;
+}
+.panel-body .material:hover { background: color-mix(in oklch, var(--foreground) 12%, transparent); color: var(--foreground); }
+.panel-body .material[aria-pressed="true"] {
+  background: var(--background); color: var(--foreground);
+  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
+}
+.panel-body .material svg { width: 26px; height: 26px; }
+
+/* Segmented controls shrink to the row height, staying concentric. */
+.panel-body .cell-segmented { height: var(--ctl-h); padding: 2px; border-radius: var(--radius-md); }
+.panel-body .cell-segmented button { height: 24px; border-radius: 6px; font-size: 11px; }
+
+.panel-body .hex-input { width: 100%; height: var(--ctl-h); border-radius: var(--radius-sm); font-size: 12px; }
+.panel-body .field-note { padding-block: 2px; }
 
 .stage {
   position: relative;
@@ -171,18 +569,20 @@ body {
 .stage > * { position: relative; z-index: 1; }
 
 /* --- Brand -------------------------------------------------------------- */
-.brand { display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 30px; height: 30px;
+  width: 26px; height: 26px;
   flex: none;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--primary);
   color: var(--primary-foreground);
   box-shadow: var(--shadow-xs);
 }
-.brand-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-copy { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.brand-name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-version { margin-top: 3px; color: var(--muted-foreground); font-size: 10px; line-height: 1; }
 
 /* --- Badge -------------------------------------------------------------- */
 .badge {
@@ -197,25 +597,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* --- Groups, labels, separator ------------------------------------------ */
-.group { display: flex; flex-direction: column; gap: 10px; }
-.group-title {
-  margin: 0;
-  font-size: 11px; font-weight: 500;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.separator { height: 1px; background: var(--border); border: 0; margin: 0; }
+/* --- Field rows (the camera tray) --------------------------------------- */
 
-.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.field > label { font-size: 13px; cursor: pointer; user-select: none; }
-.field-control { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.field > label { font-size: 11px; font-weight: 500; color: var(--muted-foreground); cursor: pointer; user-select: none; }
+.field-label { font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+.field-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .field-value {
   min-width: 38px; text-align: right;
-  font-size: 12px; color: var(--muted-foreground);
+  font-size: 11px; color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
-.field-stack { display: flex; flex-direction: column; gap: 8px; }
 
 /* --- Tabs (theme) ------------------------------------------------------- */
 .tabs {
@@ -249,18 +641,67 @@ body {
   box-shadow: var(--shadow-xs);
 }
 .tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tabs-compact {
+  position: relative;
+  width: 96px;
+  min-width: 96px;
+  height: 32px;
+  margin-inline: auto;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: visible;
+}
+.tabs-compact .tab {
+  position: relative;
+  flex: none;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  gap: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  transition-property: color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tabs-compact .tab:hover { color: var(--foreground); }
+.tabs-compact .tab:active { scale: 1; }
+.tabs-compact .tab[data-state="active"] {
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+}
+.tabs-compact .tab > .tabs-compact-active {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+.tabs-compact .tab svg { flex: none; width: 16px; height: 16px; }
+/* In the panel header the switcher sits beside a 26px brand mark. */
+.panel-head .tabs-compact { width: 90px; min-width: 90px; height: 28px; margin-inline: 0; }
+.panel-head .tabs-compact .tab { width: 30px; min-width: 30px; height: 28px; }
+.panel-head .tabs-compact .tab svg { width: 15px; height: 15px; }
+.tabs-compact .tab:focus-visible { box-shadow: var(--focus-ring); }
 
 /* --- Select ------------------------------------------------------------- */
 .select-wrap { position: relative; display: flex; width: 158px; }
 .select {
   display: inline-flex; align-items: center; justify-content: space-between;
-  width: 100%; height: 36px;
-  padding: 0 32px 0 12px;
+  width: 100%; height: 32px;
+  padding: 0 28px 0 10px;
   border: 1px solid var(--input);
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--foreground);
-  font: inherit; font-size: 13px;
+  font: inherit; font-size: 12px;
   text-align: left;
   cursor: pointer;
   box-shadow: var(--shadow-xs);
@@ -268,10 +709,17 @@ body {
   transition-duration: 150ms;
   transition-timing-function: ease-out;
 }
+.select-value {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-width: 0;
+}
+.select-value-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select:hover { border-color: var(--ring); }
 .select:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 .select[aria-expanded="true"] { border-color: var(--ring); box-shadow: var(--focus-ring); }
 .select-chevron {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; line-height: 0;
   position: absolute; right: 10px; top: 50%;
   translate: 0 -50%;
   pointer-events: none;
@@ -309,6 +757,12 @@ body {
   cursor: pointer;
 }
 .select-option-content { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.chart-option-preview {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex: none;
+  color: var(--muted-foreground);
+}
+.select-value .chart-option-preview { color: var(--foreground); }
 .shape-option-preview {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; flex: none;
@@ -453,15 +907,6 @@ body {
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 40%, transparent);
 }
 
-/* --- Ramp preview ------------------------------------------------------- */
-.ramp { display: flex; gap: 3px; }
-.ramp span {
-  flex: 1; height: 18px;
-  border-radius: var(--radius-sm);
-  outline: 1px solid var(--hairline);
-  outline-offset: -1px;
-}
-
 /* --- Button ------------------------------------------------------------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -510,6 +955,46 @@ body {
 }
 .card:hover { box-shadow: var(--shadow-border-hover); }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.preview-card { gap: 0; padding: 0; overflow: hidden; }
+.preview-tabs {
+  display: flex; align-items: stretch; gap: 2px;
+  min-height: 46px; padding-inline: 16px;
+  background: var(--card);
+}
+.preview-tab {
+  position: relative;
+  display: inline-flex; align-items: center;
+  height: 46px; padding-inline: 8px;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground);
+  font: inherit; font-size: 13px; font-weight: 500;
+  line-height: 1; cursor: pointer;
+  transition-property: color, background-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.preview-tab:hover { color: var(--foreground); }
+.preview-tab[aria-selected="true"] { color: var(--foreground); }
+.preview-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute; inset-inline: 0; bottom: 0;
+  height: 2px; border-radius: 9999px;
+  background: var(--foreground);
+}
+.preview-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.preview-surface {
+  display: flex; flex-direction: column; gap: 16px;
+  margin: 0 4px 4px; padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background); color: var(--foreground);
+  overflow: hidden;
+}
+.code-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.code-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.code-panel-head .card-desc { max-width: 60ch; }
+.code-panel .code { overflow: auto; }
+.card-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
 .card-desc { margin: 4px 0 0; font-size: 13px; color: var(--muted-foreground); }
 .card-body {
@@ -570,36 +1055,128 @@ body {
 
 /* The 3D workbench shares the playground's quiet, neutral chrome. */
 .page-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; }
-.dimension-switch { display:flex; flex:none; gap:3px; padding:4px; border-radius:12px; background:var(--muted); }
-.dimension-switch button { display:flex; align-items:center; justify-content:center; gap:7px; min-width:80px; height:36px; padding:0 14px; border:0; border-radius:8px; background:transparent; color:var(--muted-foreground); font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
+.dimension-switch { display:flex; flex:none; gap:2px; padding:3px; border-radius:10px; background:var(--muted); }
+.dimension-switch button { display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; height:30px; padding:0 10px; border:0; border-radius:7px; background:transparent; color:var(--muted-foreground); font:inherit; font-size:12px; font-weight:500; cursor:pointer; }
 .dimension-switch button[aria-pressed="true"] { background:var(--card); color:var(--foreground); box-shadow:var(--shadow-border); }
 .dimension-switch button:focus-visible, .material:focus-visible, .camera-preset:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
 .three-card { padding-bottom:16px; overflow:hidden; }
+.preview-card.three-card { padding: 0; }
 .three-card .card-head { align-items:center; }
 .three-card .card-body { overflow:visible; margin:0 -16px; padding:0; }
 .three-card .heatmap3d { width:100%; }
 .three-kicker { display:flex; align-items:center; gap:7px; margin-bottom:8px; font:500 10px "Geist Mono",monospace; color:var(--muted-foreground); letter-spacing:.09em; text-transform:uppercase; }
 .three-kicker i { display:block; width:6px; height:6px; border-radius:50%; background:var(--foreground); }
-.material-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-.material { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px 9px; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--muted-foreground); font:inherit; font-size:11px; cursor:pointer; transition:background-color 150ms ease-out,color 150ms ease-out; }
+.material-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.material { display:flex; flex-direction:column; align-items:center; gap:1px; min-height:48px; padding:4px 2px 5px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--muted-foreground); font:inherit; font-size:10px; cursor:pointer; transition-property:background-color,color,border-color; transition-duration:150ms; transition-timing-function:ease-out; }
 .material:hover { background:var(--muted); color:var(--foreground); }
 .material[aria-pressed="true"] { color:var(--foreground); background:var(--muted); border-color:var(--foreground); }
-.material svg { width:46px; height:45px; }
+.material svg { width:30px; height:30px; }
 .field-note { margin:0; color:var(--muted-foreground); font-size:11px; line-height:1.6; }
 .camera-presets { display:flex; flex-wrap:wrap; gap:5px; }
 .camera-preset { flex:1; padding:7px 5px; border:1px solid var(--border); border-radius:7px; background:var(--card); color:var(--muted-foreground); font:inherit; font-size:11px; cursor:pointer; }
 .camera-preset[aria-pressed="true"] { color:var(--foreground); background:var(--muted); border-color:var(--ring); }
+.cell-segmented { display:flex; flex:1; min-width:0; padding:3px; gap:2px; border-radius:9999px; background:var(--muted); }
+.cell-segmented button {
+  flex:1; min-width:0; height:26px; padding:0 5px; border:0; border-radius:9999px;
+  background:transparent; color:var(--muted-foreground); font:inherit; font-size:11px; font-weight:500; cursor:pointer;
+  transition-property:background-color, color, box-shadow, scale;
+  transition-duration:150ms; transition-timing-function:ease-out;
+}
+.cell-segmented button:hover { color:var(--foreground); }
+.cell-segmented button[aria-pressed="true"] { background:var(--background); color:var(--foreground); box-shadow:var(--shadow-xs); }
+.cell-segmented button:active { scale:0.96; }
+.cell-segmented button:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.panel-head .dimension-switch { width:100%; padding:2px; border-radius:var(--radius-md); }
+.panel-head .dimension-switch button { flex:1; height:26px; border-radius:6px; }
 .chart-status { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:14px; border-top:1px solid var(--border); color:var(--muted-foreground); font:400 11px "Geist Mono",monospace; }
 .chart-status span { display:flex; align-items:center; gap:6px; }
 .chart-status strong { color:var(--foreground); font-weight:500; }
 .chart-view-actions { display:flex; align-items:center; gap:8px; }
 .chart-view-actions .btn { height:30px; font-size:11px; }
-@media (max-width:900px) { .stage { padding:20px; } .sidebar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; } .sidebar > hr { display:none; } .sidebar > :first-child { grid-column:1/-1; } }
-@media (max-width:540px) { .stage { padding:14px; } .sidebar { display:flex; padding:16px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } }
+@media (max-width:900px) { .stage { padding:20px; } .sidebar { position:static; height:auto; grid-template-rows:auto auto auto; margin:8px 8px 0; } .panel-body { overflow:visible; } /* The rails are the point of an inspector, so a stacked panel keeps them rather than stretching one select across the page. */ .panel-head, .psec-rows, .panel-foot { max-width:420px; } }
+@media (max-width:540px) { .stage { padding:14px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .preview-surface { padding:16px; } .code-panel-head { flex-wrap:wrap; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } }
+
+/* --- Strip: the chart's own controls, parked over the preview ------------ */
+.strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+/* Camera is the only preview-specific control left in this strip. */
+
+/* A pill names a part of the chart and reports what it is set to, so the row
+ * answers "what is this chart?" with nothing opened. */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 11px 0 14px;
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit; font-size: 13px;
+  white-space: nowrap; cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition-property: border-color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+.pill:hover { border-color: var(--ring); }
+.pill:active { scale: 0.98; }
+.pill:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.pill[data-open="true"] { border-color: var(--ring); box-shadow: var(--focus-ring); }
+.pill-value { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.pill-chevron {
+  display: inline-flex; color: var(--muted-foreground);
+  transition-property: rotate; transition-duration: 150ms; transition-timing-function: ease-out;
+}
+.pill[data-open="true"] .pill-chevron { rotate: 180deg; }
+.pill-mark { width: 5px; height: 5px; flex: none; border-radius: 9999px; background: var(--foreground); }
+
+/* The tray opens between the strip and the card, so the preview below is
+ * never covered and never pushed down. */
+.stage > .tray { z-index: 5; }          /* clear the card for select menus */
+.tray {
+  position: relative;
+  display: flex; flex-wrap: wrap; gap: 24px;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--shadow-border);
+  animation: tray-in 200ms var(--ease-emphasis) both;
+}
+@keyframes tray-in { from { opacity: 0; translate: 0 -6px; } }
+.tray-close {
+  position: absolute; top: 8px; right: 8px;
+  display: grid; place-items: center;
+  width: 24px; height: 24px;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground);
+  cursor: pointer;
+}
+.tray-close:hover { background: var(--accent); color: var(--foreground); }
+.tray-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tray-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tray-col:last-child { padding-right: 26px; }
+.tray-title {
+  margin: 0;
+  font: 500 10px "Geist Mono", ui-monospace, monospace;
+  letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.rail-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rail-changes {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--muted-foreground);
+}
+
+@media (max-width: 900px) {
+  .tray-col:last-child { padding-right: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; opacity: 1; transform: none; filter: none; }
+  .psec-panel { transition-duration: 1ms; }
+  .psec-caret { transition-duration: 1ms; }
+  .psec[data-open="true"] .psec-clip { animation-delay: 1ms; }
   .icon-swap > span { transition-duration: 1ms; }
+  .tabs-compact .tab { transition-duration: 1ms; }
 }
 </style>
 <script type="importmap">
@@ -658,15 +1235,15 @@ const CUSTOM = "custom";
 const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
 
 const DEFAULTS = {
-  dimension:"3d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
+  dimension:"2d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
   theme3d:"green", material:"solid", animation:"grow",
   yaw:-35, pitch:38, zoom:100,
   shape:"rounded", encode:"color", scale:"quantile",
-  cellSize:13, gap:3, levels:4, weeks:20,
-  ramp:"green", empty:null, showLegend:true, showValues:true, theme:"system", base:"#8b5cf6",
+  cellSize:13, gap:3, levels:4,
+  ramp:"green", empty:null, showLegend:true, showValues:false, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
-  weeks:20, weekStart:"Sunday", showMonths:true, showWeekdays:false,
+  weeks:53, weekStart:"Sunday", showMonths:true, showWeekdays:false,
   // Punchcard
   showHours:true, showDays:true,
   // Cohort retention
@@ -685,10 +1262,21 @@ const PATHS = {
   copy: ["M9 9h10v12H9z","M5 15H3V3h12v2"],
   check: ["M20 6 9 17l-5-5"],
   chevron: ["m6 9 6 6 6-6"],
+  close: ["M18 6 6 18", "m6 6 12 12"],
   reset: ["M3 12a9 9 0 1 0 3-6.7L3 8","M3 3v5h5"],
   cube: ["m12 3 9 5-9 5-9-5 9-5Z","M3 8v9l9 5 9-5V8","M12 13v9"],
   grid: ["M3 3h7v7H3z","M14 3h7v7h-7z","M3 14h7v7H3z","M14 14h7v7h-7z"],
+  calendar: ["M5 5h14v15H5z","M8 3v4","M16 3v4","M5 9h14"],
+  punchcard: ["M4 4h16v16H4z","M8 9h.01","M12 9h.01","M16 9h.01","M8 14h.01","M12 14h.01","M16 14h.01"],
+  cohort: ["M4 4h16v16H4z","M8 8h8","M8 12h5","M8 16h2"],
+  matrix: ["M4 4h6v6H4z","M14 4h6v6h-6z","M4 14h6v6H4z","M14 14h6v6h-6z"],
+  uptime: ["M4 18h16","M5 15 9 10l4 3 6-7"],
   height: ["M12 3v18","m8 7 4-4 4 4","m8 17 4 4 4-4"],
+  // Two outward chevrons: the whole message is "drag me sideways".
+  scrub: ["m9 8-4 4 4 4","m15 8 4 4-4 4"],
+  // The cell itself, and the space between two of them.
+  cell: ["M5 5h14v14H5z"],
+  cellgap: ["M4 5v14","M10 5v14","M14 5v14","M20 5v14"],
 };
 
 function Icon({ name, size = 16, stroke = 2 }) {
@@ -806,6 +1394,7 @@ function uptimeValues(services,days){
 }
 
 /* --- Primitives ----------------------------------------------------------- */
+/** The tray's own row. The properties panel uses PRow. */
 function Field({label,htmlFor,children}){
   return h("div",{className:"field"},h("label",{htmlFor},label),children);
 }
@@ -836,25 +1425,76 @@ function MaterialPreview({kind}){
 
 function DimensionSwitch({value,onChange}){
   return h("div",{className:"dimension-switch",role:"group","aria-label":"Chart dimension"},
-    ["2d","3d"].map(v=>h("button",{key:v,type:"button","aria-pressed":value===v,onClick:()=>onChange(v)},
+    ["2d","3d"].map(v=>h("button",{key:v,type:"button",className:"option-tooltip",
+      "aria-label":v==="2d"?"2D flat grid":"3D perspective chart",
+      "data-tooltip":v==="2d"?"Flat grid preview":"Perspective preview",
+      "aria-pressed":value===v,onClick:()=>onChange(v)},
       h(Icon,{name:v==="3d"?"cube":"grid",size:15}),v.toUpperCase())));
 }
 
 function Switch({s,set,name,label}){
   const id="c-"+name;
   const on=s[name];
-  return h(Field,{label,htmlFor:id},
+  return h(PRow,{label,htmlFor:id,end:true},
     h("button",{id,type:"button",className:"switch",role:"switch",
       "aria-checked":on,"aria-label":label,"data-state":on?"checked":"unchecked",
       onClick:()=>set(name,!on)},
       h("span",{className:"switch-thumb"})));
 }
 
+/* --- Strip and tray ------------------------------------------------------- */
+
+/**
+ * A pill names one part of the chart and reports what it is set to, so the
+ * strip answers "what is this chart?" with nothing opened. The dot marks a
+ * section holding a value that is not the default.
+ */
+function Pill({name,value,open,modified,onClick}){
+  return h("button",{type:"button",className:"pill","data-open":open,
+    "aria-expanded":open,onClick},
+    modified?h("span",{className:"pill-mark","aria-hidden":"true"}):null,
+    name,
+    h("span",{className:"pill-value"},value),
+    h("span",{className:"pill-chevron","aria-hidden":"true"},h(Icon,{name:"chevron",size:13,stroke:2})));
+}
+
+/**
+ * The tray opens between the strip and the card rather than over it, so the
+ * preview is never covered and never moves while a control is being read.
+ */
+function Tray({label,onClose,children}){
+  return h("div",{className:"tray",role:"group","aria-label":label},
+    h("button",{type:"button",className:"tray-close",
+      "aria-label":"Close "+label.toLowerCase(),onClick:onClose},
+      h(Icon,{name:"close",size:13,stroke:2})),
+    children);
+}
+
+function TrayColumn({title,width,grow,children}){
+  const style=grow?{flex:"1 1 0%",minWidth:0}:width?{width}:undefined;
+  return h("div",{className:"tray-col",style},h("h3",{className:"tray-title"},title),children);
+}
+
+const title=word=>word.charAt(0).toUpperCase()+word.slice(1);
+
 function ShapePreview({shape}){
   const size=16;
   return h("span",{className:"shape-option-preview","aria-hidden":"true"},
     h("span",{className:"shape-option-preview-cell",
       style:{...shapeStyle(shape),...fillStyle(shape,3,4,"currentColor",size)}}));
+}
+
+const GRAPH_ICON_NAMES={
+  calendar:"calendar",
+  punchcard:"punchcard",
+  cohort:"cohort",
+  matrix:"matrix",
+  uptime:"uptime",
+};
+
+function ChartPreview({graph}){
+  return h("span",{className:"chart-option-preview","aria-hidden":"true"},
+    h(Icon,{name:GRAPH_ICON_NAMES[graph],size:16,stroke:1.7}));
 }
 
 function paletteFor(name,{dark=false,base="#8b5cf6",levels=4}={}){
@@ -865,10 +1505,15 @@ function paletteFor(name,{dark=false,base="#8b5cf6",levels=4}={}){
   return resampleRamp(preset[dark?"dark":"light"],levels);
 }
 
-function RampPreview({ramp,dark,base}){
-  return h("span",{className:"ramp-option-preview","aria-hidden":"true"},
-    paletteFor(ramp,{dark,base,levels:4}).map((color,i)=>
-      h("span",{key:i,style:{background:color}})));
+function RampPreview({ramp,dark,base,levels=4}){
+  const colors=paletteFor(ramp,{dark,base,levels});
+  return h("span",{className:"ramp-option-preview","aria-hidden":"true",style:{
+    "--ramp-start":colors[0],"--ramp-end":colors[colors.length-1]}});
+}
+
+function CustomRampPreview({base}){
+  return h("span",{className:"custom-ramp-option-preview","aria-hidden":"true"},
+    h("span",{className:"custom-ramp-option-dot",style:{background:base}}));
 }
 
 function Select({s,set,name,label,options,format,optionPreview}){
@@ -957,13 +1602,15 @@ function Select({s,set,name,label,options,format,optionPreview}){
     }
   };
 
-  return h(Field,{label,htmlFor:id},
+  return h(PRow,{label,htmlFor:id},
     h("div",{className:"select-wrap",ref:wrapRef,"data-open":open,"data-placement":placement},
       h("button",{id,ref:triggerRef,type:"button",className:"select",
         "aria-haspopup":"menu","aria-expanded":open,"aria-controls":menuId,
         "aria-label":label+": "+display(s[name]),
         onClick:()=>open?close(true):openMenu(),onKeyDown:onTriggerKeyDown},
-        display(s[name]),
+        h("span",{className:"select-value"},
+          optionPreview?optionPreview(s[name]):null,
+          h("span",{className:"select-value-label"},display(s[name]))),
         h("span",{className:"select-chevron"},h(Icon,{name:"chevron",size:15,stroke:1.5}))),
       open?h("div",{id:menuId,className:"select-menu",role:"menu","aria-label":label,
         onKeyDown:onMenuKeyDown},
@@ -979,6 +1626,236 @@ function Select({s,set,name,label,options,format,optionPreview}){
               h("span",null,display(o))),
             selected?h("span",{className:"select-option-check","aria-hidden":"true"},h(Icon,{name:"check",size:14,stroke:2})):null);
         })):null));
+}
+
+/* --- Properties panel primitives -------------------------------------------
+ * Figma's UI3 lesson, applied: give a control a visible affordance, put every
+ * row on the same two rails, and let a section fold away when it is not the
+ * one being worked on.
+ */
+
+/** One inspector row: a fixed label column, then the control column. */
+function PRow({label,htmlFor,end,split,children}){
+  const labelProps={className:"prow-label"};
+  if(htmlFor) labelProps.htmlFor=htmlFor;
+  return h("div",{className:"prow"},
+    h(htmlFor?"label":"span",labelProps,label),
+    h("div",{className:"prow-ctl"+(end?" prow-end":"")+(split?" prow-split":"")},children));
+}
+
+/** A control wide enough to need the whole column keeps its label above it. */
+function PBlock({label,children}){
+  return h("div",{className:"prow prow-wide"},
+    h("span",{className:"prow-label"},label),
+    children);
+}
+
+/**
+ * The scrub field. Type an exact value, nudge it with the arrow keys (shift
+ * for ten), or drag the grip sideways. A slider could only be dragged, and
+ * only as finely as its 132px track allowed — this is a third of the width
+ * and settable to the step.
+ */
+function NumberField({value,min,max,step=1,suffix="",label,id,onChange}){
+  const [draft,setDraft]=useState(null);
+  const [scrubbing,setScrubbing]=useState(false);
+  const drag=useRef(null);
+
+  const clamp=v=>Math.min(max,Math.max(min,Math.round(v/step)*step));
+  const commit=raw=>{
+    const n=parseFloat(String(raw).replace(/[^0-9.+-]/g,""));
+    if(Number.isFinite(n)) onChange(clamp(n));
+    setDraft(null);
+  };
+  const nudge=(dir,big)=>{ setDraft(null); onChange(clamp(value+dir*step*(big?10:1))); };
+
+  /* Four pixels of travel per step keeps a short range steady under the hand;
+   * shift multiplies by ten so a 360° range is still one comfortable drag. */
+  const onPointerDown=e=>{
+    if(e.button!==0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current={x:e.clientX,from:value};
+    setScrubbing(true);
+    document.body.dataset.scrubbing="true";
+  };
+  const onPointerMove=e=>{
+    if(!drag.current) return;
+    const steps=Math.round((e.clientX-drag.current.x)/4)*(e.shiftKey?10:1);
+    onChange(clamp(drag.current.from+steps*step));
+  };
+  const onPointerUp=e=>{
+    if(!drag.current) return;
+    drag.current=null;
+    setScrubbing(false);
+    delete document.body.dataset.scrubbing;
+    if(e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const onKeyDown=e=>{
+    if(e.key==="Enter"){ e.preventDefault(); commit(e.currentTarget.value); }
+    else if(e.key==="Escape"){ e.preventDefault(); setDraft(null); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); nudge(1,e.shiftKey); }
+    else if(e.key==="ArrowDown"){ e.preventDefault(); nudge(-1,e.shiftKey); }
+  };
+
+  return h("div",{className:"nfield","data-scrub":scrubbing?"true":"false"},
+    h("span",{className:"nfield-grip","aria-hidden":"true",title:label+" — drag to change",
+      onPointerDown,onPointerMove,onPointerUp,onPointerCancel:onPointerUp},
+      h(Icon,{name:"scrub",size:13,stroke:1.5})),
+    h("input",{id,className:"nfield-input",type:"text",inputMode:"numeric",
+      autoComplete:"off",spellCheck:false,"aria-label":label,
+      value:draft??String(value),
+      onChange:e=>setDraft(e.target.value),
+      onBlur:e=>commit(e.target.value),
+      onKeyDown}),
+    suffix?h("span",{className:"nfield-unit","aria-hidden":"true"},suffix):null);
+}
+
+function NumRow({s,set,name,label,min,max,step,suffix}){
+  const id="c-"+name;
+  return h(PRow,{label,htmlFor:id},
+    h(NumberField,{id,label,value:s[name],min,max,step,suffix,onChange:v=>set(name,v)}));
+}
+
+/** Two readings of the same thing share a row, the way W and H do. */
+function NumPair({s,set,label,a,b}){
+  const field=f=>h(NumberField,{key:f.name,id:"c-"+f.name,label:f.label,value:s[f.name],
+    min:f.min,max:f.max,suffix:f.suffix,onChange:v=>set(f.name,v)});
+  return h("div",{className:"prow"},
+    h("span",{className:"prow-label"},label),
+    h("div",{className:"prow-ctl prow-split"},field(a),field(b)));
+}
+
+/**
+ * A section folds, carries a dot when it holds something other than a default,
+ * and resets only itself — so undoing one experiment no longer means undoing
+ * every other one.
+ */
+function Section({id,title,open,onToggle,modified,onReset,style,children}){
+  return h("section",{className:"psec enter",style,"data-open":open?"true":"false"},
+    h("div",{className:"psec-head"},
+      h("button",{type:"button",className:"psec-toggle",
+        "aria-expanded":open,"aria-controls":id,onClick:onToggle},
+        h("span",{className:"psec-caret"},h(Icon,{name:"chevron",size:13,stroke:2})),
+        title),
+      modified?h("span",{className:"psec-dot",role:"img",
+        "aria-label":title+" is not at its default"}):null,
+      h("button",{type:"button",className:"psec-action",
+        "aria-label":"Reset "+title.toLowerCase(),title:"Reset "+title.toLowerCase(),
+        onClick:onReset},
+        h(Icon,{name:"reset",size:13,stroke:2}))),
+    h("div",{className:"psec-panel"},
+      h("div",{className:"psec-clip"},
+        h("div",{className:"psec-rows",id},children))));
+}
+
+/** A recessed trough of borderless tiles; only the chosen one lifts out. */
+function TileGroup({label,kind,options,value,onChange,labelOf,render}){
+  return h("div",{className:"tilebox tilebox-"+kind,role:"group","aria-label":label},
+    options.map(o=>h("button",{key:o,type:"button",
+      className:"tile tile-"+kind+" option-tooltip","aria-label":labelOf(o),title:labelOf(o),
+      "data-tooltip":labelOf(o),
+      "aria-pressed":value===o,onClick:()=>onChange(o)},
+      render(o))));
+}
+
+function ShapeChoices({value,onChange}){
+  return h(PBlock,{label:"Shape"},
+    h(TileGroup,{label:"Shape",kind:"shape",options:SHAPES,value,onChange,
+      labelOf:title,render:shape=>h(ShapePreview,{shape})}));
+}
+
+function EncodeChoice({value,onChange}){
+  const options=[
+    {value:"color",label:"Colour",tip:"Colour encodes the value"},
+    {value:"size",label:"Size",tip:"Size encodes the value"},
+    {value:"both",label:"Both",tip:"Colour and size encode the value"},
+  ];
+  return h(PRow,{label:"Encode"},
+    h("div",{className:"cell-segmented",role:"group","aria-label":"Encode"},
+      options.map(option=>h("button",{key:option.value,type:"button",
+        className:"option-tooltip","aria-label":option.label+": "+option.tip,
+        "data-tooltip":option.tip,"aria-pressed":value===option.value,
+        onClick:()=>onChange(option.value)},option.label))));
+}
+
+/* Size and gap are one reading of the cell, so they share a row the way W and
+ * H do — each field keeps its own glyph, tooltip and accessible name. */
+const CELL_METRICS={
+  a:{name:"cellSize",label:"Size",min:6,max:30,suffix:"px"},
+  b:{name:"gap",label:"Gap",min:0,max:10,suffix:"px"},
+};
+
+function CellControls({s,set,is3d}){
+  if(is3d) return [
+    h(PBlock,{key:"block",label:"Block"},
+      h("div",{className:"material-options",role:"group","aria-label":"Block style"},
+        MATERIALS.map(m=>h("button",{key:m.value,type:"button",className:"material",
+          title:m.label,"aria-pressed":s.blockStyle===m.value,
+          onClick:()=>set("blockStyle",m.value)},
+          h(MaterialPreview,{kind:m.value}),m.label)))),
+    h(Select,{key:"shape",s,set,name:"shape3d",label:"Shape",options:SHAPES_3D,format:title}),
+    h(NumPair,{key:"metrics",s,set,label:"Cell",...CELL_METRICS}),
+    h(NumRow,{key:"height",s,set,name:"maxHeight",label:"Height",min:10,max:150}),
+    h(Select,{key:"surface",s,set,name:"material",label:"Surface",options:SURFACE_MATERIALS,
+      format:k=>k==="pattern"?"Pattern":"Solid"}),
+    h(Select,{key:"entrance",s,set,name:"animation",label:"Entrance",options:ANIMATIONS_3D,
+      format:k=>k==="grow"?"Grow":"None"}),
+  ];
+
+  return [
+    h(ShapeChoices,{key:"shape",value:s.shape,onChange:value=>set("shape",value)}),
+    h(NumPair,{key:"metrics",s,set,label:"Cell",...CELL_METRICS}),
+    h(EncodeChoice,{key:"encode",value:s.encode,onChange:value=>set("encode",value)}),
+  ];
+}
+
+function PaletteChoices({s,set,isDark}){
+  const rampLabel=ramp=>ramp===CUSTOM?"Custom":RAMPS[ramp].label;
+  return h(PBlock,{label:"Palette"},
+    h(TileGroup,{label:"Palette",kind:"ramp",options:RAMP_NAMES,value:s.ramp,
+      onChange:ramp=>set("ramp",ramp),labelOf:rampLabel,
+      render:ramp=>ramp===CUSTOM
+        ?h(CustomRampPreview,{base:s.base})
+        :h(RampPreview,{ramp,dark:isDark,base:s.base,levels:4})}));
+}
+
+function ScaleChoices({value,onChange}){
+  const options=[
+    {value:"quantile",label:"Quantile",tip:"Equalize values across bands"},
+    {value:"linear",label:"Linear",tip:"Keep numeric distances proportional"},
+    {value:"log",label:"Log",tip:"Reveal patterns across large ranges"},
+  ];
+  return h(PRow,{label:"Scale"},
+    h("div",{className:"cell-segmented",role:"group","aria-label":"Scale"},
+      options.map(option=>h("button",{key:option.value,type:"button",className:"option-tooltip",
+        "aria-label":option.label+": "+option.tip,"data-tooltip":option.tip,
+        "aria-pressed":value===option.value,
+        onClick:()=>onChange(option.value)},option.label))));
+}
+
+function ColourControls({s,set,is3d,isDark,empty}){
+  return [
+    is3d?h(Select,{key:"theme3d",s,set,name:"theme3d",label:"3D theme",options:THEMES_3D,format:title}):null,
+    h(PaletteChoices,{key:"palette",s,set,isDark}),
+    s.ramp===CUSTOM?h(PRow,{key:"base",label:"Base",htmlFor:"c-base"},
+      h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
+    h(ScaleChoices,{key:"scale",value:s.scale,onChange:value=>set("scale",value)}),
+    h(NumRow,{key:"bands",s,set,name:"levels",label:"Bands",min:2,max:8}),
+    h(PRow,{key:"empty",label:"Empty",htmlFor:"c-empty"},
+      h("span",{className:"swatch"},
+        h("input",{id:"c-empty",type:"color",value:empty,
+          onChange:e=>set("empty",e.target.value)}))),
+  ];
+}
+
+function LabelControls({s,set,is3d,graph}){
+  return [
+    ...graph.labels(s,set),
+    is3d?null:h(Switch,{key:"values",s,set,name:"showValues",label:"Values in cells"}),
+    h(Switch,{key:"legend",s,set,name:"showLegend",label:"Legend"}),
+  ];
 }
 
 const toHex=({r,g,b})=>"#"+[r,g,b].map(c=>Math.round(c).toString(16).padStart(2,"0")).join("");
@@ -1035,13 +1912,32 @@ function HexField({value,onChange}){
       onBlur:()=>setDraft(value)}));
 }
 
-function Tabs({value,options,onChange,label}){
-  return h("div",{className:"tabs",role:"tablist","aria-label":label},
-    options.map(o=>
-      h("button",{key:o.value,type:"button",className:"tab",role:"tab",
-        "aria-selected":value===o.value,"data-state":value===o.value?"active":"inactive",
-        onClick:()=>onChange(o.value)},
-        h(Icon,{name:o.icon,size:14,stroke:2}), o.label)));
+function Tabs({value,options,onChange,label,compact=false}){
+  const move=(event,index)=>{
+    if(!compact) return;
+    const nextIndex=event.key==="Home"?0:event.key==="End"?options.length-1:null;
+    const delta=event.key==="ArrowRight"||event.key==="ArrowDown"?1:
+      event.key==="ArrowLeft"||event.key==="ArrowUp"?-1:0;
+    if(nextIndex===null&&!delta) return;
+    event.preventDefault();
+    const next=nextIndex===null?(index+delta+options.length)%options.length:nextIndex;
+    const group=event.currentTarget.parentElement;
+    onChange(options[next].value);
+    requestAnimationFrame(()=>group?.children[next]?.focus());
+  };
+  return h("div",{className:"tabs"+(compact?" tabs-compact":""),role:compact?"radiogroup":"tablist","aria-label":label},
+    options.map((o,index)=>{
+      const selected=value===o.value;
+      return h("button",{key:o.value,type:"button",className:"tab"+(compact?" option-tooltip":""),role:compact?"radio":"tab",
+        "aria-selected":compact?undefined:selected,"aria-checked":compact?selected:undefined,
+        tabIndex:compact?(selected?0:-1):undefined,
+        "data-state":selected?"active":"inactive","data-active":compact?selected:undefined,
+        "aria-label":compact?`Switch to ${o.label.toLowerCase()} theme`:undefined,
+        "data-tooltip":compact?o.label+" theme":undefined,
+        onClick:event=>{if(!selected) onChange(o.value,{animate:event.detail>0});},onKeyDown:event=>move(event,index)},
+        h(Icon,{name:o.icon,size:compact?16:14,stroke:2}),
+        compact&&selected?h("span",{className:"tabs-compact-active","aria-hidden":"true"}):compact?null:o.label);
+    }));
 }
 
 /** Both icons stay mounted and cross-fade, so enter and exit both animate. */
@@ -1171,17 +2067,31 @@ function columnLabelDecl(name, entries){
  */
 const WEEK_START = { Sunday: 0, Monday: 1 };
 
+function WeekStartChoice({value,onChange}){
+  return h(PRow,{label:"Week starts"},
+    h("div",{className:"cell-segmented week-start-toggle",role:"group","aria-label":"Week starts"},
+      Object.keys(WEEK_START).map(option=>h("button",{key:option,type:"button",
+        "aria-pressed":value===option,"aria-label":"Start weeks on "+option,
+        className:"option-tooltip","data-tooltip":"Start each week on "+option,
+        onClick:()=>onChange(option)},option))));
+}
+
 const GRAPHS = {
   calendar: {
     label: "Calendar",
     description: "The date adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.",
     badge: s => s.weeks + " weeks",
-    controls: (s, set) => [
-      h(Slider, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: 53 }),
-      h(Select, { key: "start", s, set, name: "weekStart", label: "Week starts", options: Object.keys(WEEK_START) }),
+    data: (s, set) => [
+      h(NumRow, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: 53 }),
+      h(WeekStartChoice, { key: "start", value: s.weekStart, onChange: value => set("weekStart", value) }),
+    ],
+    labels: (s, set) => [
       h(Switch, { key: "months", s, set, name: "showMonths", label: "Month labels" }),
       h(Switch, { key: "days", s, set, name: "showWeekdays", label: "Weekday labels" }),
     ],
+    dataKeys: ["weeks", "weekStart"],
+    labelKeys: ["showMonths", "showWeekdays"],
+    sample: (s, ctx) => ctx.days.filter(d => d.known !== false).map(d => d.value),
     view: ({ s, common, themeAttr, days }) => h(CalendarHeatmap, {
       values: days, to:"2026-09-07", weeks: s.weeks, unitLabel: "events",
       weekStart: WEEK_START[s.weekStart],
@@ -1210,10 +2120,14 @@ const GRAPHS = {
     label: "Punchcard",
     description: "The same core with no dates involved: hours down, weekdays across.",
     badge: () => "24 × 7",
-    controls: (s, set) => [
+    data: () => [],
+    labels: (s, set) => [
       h(Switch, { key: "hours", s, set, name: "showHours", label: "Hour labels" }),
       h(Switch, { key: "days", s, set, name: "showDays", label: "Weekday labels" }),
     ],
+    dataKeys: [],
+    labelKeys: ["showHours", "showDays"],
+    sample: () => punchcard.flat(),
     view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
       rows: 24, columns: 7, values: punchcard, ariaLabel: "Commits by hour and weekday",
       rowLabels: s.showHours ? Array.from({ length: 24 }, (_, i) => i % 6 === 0 ? `${i}:00` : "") : undefined,
@@ -1244,10 +2158,14 @@ const GRAPHS = {
     label: "Cohort retention",
     description: "Rows are cohorts, columns are weeks since signup. A newer cohort has no history yet, so those slots are not drawn at all.",
     badge: s => s.cohorts + " × " + s.horizon,
-    controls: (s, set) => [
-      h(Slider, { key: "c", s, set, name: "cohorts", label: "Cohorts", min: 4, max: 16 }),
-      h(Slider, { key: "h", s, set, name: "horizon", label: "Horizon", min: 4, max: 16, suffix: "w" }),
+    data: (s, set) => [
+      h(NumRow, { key: "c", s, set, name: "cohorts", label: "Cohorts", min: 4, max: 16 }),
+      h(NumRow, { key: "h", s, set, name: "horizon", label: "Horizon", min: 4, max: 16, suffix: "w" }),
     ],
+    labels: () => [],
+    dataKeys: ["cohorts", "horizon"],
+    labelKeys: [],
+    sample: s => cohortValues(s.cohorts, s.horizon).map(v => v.value),
     view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
       rows: s.cohorts, columns: s.horizon,
       values: cohortValues(s.cohorts, s.horizon),
@@ -1284,10 +2202,14 @@ const GRAPHS = {
     label: "Co-occurrence",
     description: "A symmetric grid over the same labels on both axes. The diagonal is hidden rather than filled with a meaningless self-match.",
     badge: s => s.items + " × " + s.items,
-    controls: (s, set) => [
-      h(Slider, { key: "i", s, set, name: "items", label: "Items", min: 4, max: 12 }),
+    data: (s, set) => [
+      h(NumRow, { key: "i", s, set, name: "items", label: "Items", min: 4, max: 12 }),
       h(Switch, { key: "d", s, set, name: "hideDiagonal", label: "Hide diagonal" }),
     ],
+    labels: () => [],
+    dataKeys: ["items", "hideDiagonal"],
+    labelKeys: [],
+    sample: s => matrixValues(s.items, s.hideDiagonal).map(v => v.value),
     view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
       rows: s.items, columns: s.items,
       values: matrixValues(s.items, s.hideDiagonal),
@@ -1318,10 +2240,14 @@ const GRAPHS = {
     label: "Uptime",
     description: "Services down, days across. One service was onboarded late, so its early days are absent rather than zero.",
     badge: s => s.services + " × " + s.days,
-    controls: (s, set) => [
-      h(Slider, { key: "s", s, set, name: "services", label: "Services", min: 4, max: 12 }),
-      h(Slider, { key: "d", s, set, name: "days", label: "Days", min: 7, max: 60 }),
+    data: (s, set) => [
+      h(NumRow, { key: "s", s, set, name: "services", label: "Services", min: 4, max: 12 }),
+      h(NumRow, { key: "d", s, set, name: "days", label: "Days", min: 7, max: 60 }),
     ],
+    labels: () => [],
+    dataKeys: ["services", "days"],
+    labelKeys: [],
+    sample: s => uptimeValues(s.services, s.days).filter(v => v.known !== false).map(v => v.value),
     view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
       rows: s.services, columns: s.days,
       values: uptimeValues(s.services, s.days),
@@ -1354,6 +2280,7 @@ const GRAPHS = {
   },
 };
 const GRAPH_NAMES = Object.keys(GRAPHS);
+const CHART_KEYS=["graph",...new Set(GRAPH_NAMES.flatMap(g=>GRAPHS[g].dataKeys))];
 const GRAPH_LABELS = GRAPH_NAMES.map(k => GRAPHS[k].label);
 
 /** Entrance props: the index drives an even 100ms cadence between groups. */
@@ -1361,7 +2288,21 @@ const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
 
 function App(){
   const [s,setS]=useState(DEFAULTS);
+  const [panelView,setPanelView]=useState("preview");
+  const [tray,setTray]=useState(null);
+  const [openSections,setOpenSections]=useState(
+    {chart:true,cells:true,colour:true,labels:true});
+  const themeScopeRef=useRef(null);
+  const activeThemeTransition=useRef(null);
   const set=(k,v)=>setS(p=>({...p,[k]:v}));
+  const toggleSection=key=>setOpenSections(p=>({...p,[key]:!p[key]}));
+  /* Resetting one section is the common case — an experiment with colour
+   * should not cost the shape and the labels you already settled on. */
+  const resetKeys=keys=>setS(p=>{
+    const next={...p};
+    keys.forEach(k=>{next[k]=DEFAULTS[k];});
+    return next;
+  });
   const is3d=s.dimension==="3d";
   const setCamera=c=>setS(p=>({...p,yaw:c.yaw,pitch:c.pitch,zoom:c.zoom*100}));
   const resetCamera=()=>setS(p=>({...p,yaw:-35,pitch:38,zoom:100}));
@@ -1384,10 +2325,39 @@ function App(){
   // The theme choice has to reach the page chrome, not just the components.
   useEffect(()=>{
     const el=document.documentElement;
-    suppressTransitions();
     if(themeAttr) el.setAttribute("data-theme",themeAttr); else el.removeAttribute("data-theme");
   },[themeAttr]);
   useEffect(()=>{ if(!themeAttr) suppressTransitions(); },[systemDark,themeAttr]);
+
+  const changeTheme=(theme,{animate=false}={})=>{
+    const switchTheme=()=>set("theme",theme);
+    const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const scope=themeScopeRef.current;
+    const start=scope?.startViewTransition;
+    if(!animate||reduced||!scope||typeof start!=="function"){
+      suppressTransitions();
+      switchTheme();
+      return;
+    }
+    const active=activeThemeTransition.current;
+    if(active){
+      active.skipTransition?.();
+      activeThemeTransition.current=null;
+      suppressTransitions();
+      switchTheme();
+      return;
+    }
+    try {
+      const transition=start.call(scope,switchTheme);
+      activeThemeTransition.current=transition;
+      void transition.finished.catch(()=>{}).finally(()=>{
+        if(activeThemeTransition.current===transition) activeThemeTransition.current=null;
+      });
+    } catch {
+      suppressTransitions();
+      switchTheme();
+    }
+  };
 
   const common={scale:s.scale,cellSize:s.cellSize,
     gap:s.gap,levels:s.levels,showLegend:s.showLegend,
@@ -1403,138 +2373,177 @@ function App(){
   const stride=s.cellSize+s.gap;
   const ctx={s,common,themeAttr,days,stride};
   const code=snippet(s,empty,ground,colors,stride);
+
+  /* --- The strip -----------------------------------------------------------
+   * The compact, frequently checked controls stay above the preview. Palette,
+   * scale, and bands live in the rail so they are always one click away.
+   */
+  const dataControls=graph.data(s,set);
+  const differs=(...keys)=>keys.some(k=>s[k]!==DEFAULTS[k]);
+  const modified={
+    cells: is3d
+      ? differs("shape3d","blockStyle","material","animation","cellSize","gap","maxHeight")
+      : differs("shape","encode","cellSize","gap"),
+    colour: differs("ramp","base","empty")||(is3d&&differs("theme3d")),
+    scale: differs("scale","levels"),
+    labels: differs("showLegend",...(is3d?[]:["showValues"]),...graph.labelKeys),
+    camera: differs("yaw","pitch","zoom"),
+  };
+  const sections=[
+    ...(is3d?[{key:"camera",name:"Camera"}]:[]),
+  ];
+  const cellKeys=is3d
+    ? ["shape3d","blockStyle","material","animation","cellSize","gap","maxHeight"]
+    : ["shape","encode","cellSize","gap"];
+  const colourKeys=["ramp","base","empty","scale","levels",...(is3d?["theme3d"]:[])];
+  const labelKeys=["showLegend",...(is3d?[]:["showValues"]),...graph.labelKeys];
+  // Leaving 3D closes a tray that no longer has anything to show.
+  const openTray=sections.some(x=>x.key===tray)?tray:null;
+  // The tally sits beside Reset, so it counts every configurable rail area and
+  // each remaining pill that Reset undoes.
+  const chartChanged=differs("graph",...graph.dataKeys);
+  const changed=(modified.cells?1:0)+(modified.colour?1:0)+(modified.scale?1:0)+(modified.labels?1:0)+sections.filter(x=>modified[x.key]).length+(chartChanged?1:0);
+
+  const cameraPreset=CAMERA_PRESETS.find(preset=>
+    Math.abs(s.yaw-preset.yaw)<1&&Math.abs(s.pitch-preset.pitch)<1&&Math.abs(s.zoom-100)<1);
+  const pillValue={
+    camera: cameraPreset?cameraPreset.label:"Custom",
+  };
+
+  const trayColumns=()=>{
+    if(openTray==="camera") return [
+      h(TrayColumn,{key:"preset",title:"Preset",width:"250px"},
+        h("div",{className:"camera-presets",role:"group","aria-label":"Camera presets"},
+          CAMERA_PRESETS.map(preset=>h("button",{key:preset.label,type:"button",className:"camera-preset",
+            "aria-pressed":Math.abs(s.yaw-preset.yaw)<1&&Math.abs(s.pitch-preset.pitch)<1,
+            onClick:()=>setS(prev=>({...prev,yaw:preset.yaw,pitch:preset.pitch,zoom:100}))},preset.label)))),
+      h(TrayColumn,{key:"angle",title:"Angle",width:"236px"},
+        h(Slider,{s,set,name:"yaw",label:"Rotation",min:-180,max:180,suffix:"°"}),
+        h(Slider,{s,set,name:"pitch",label:"Tilt",min:15,max:75,suffix:"°"}),
+        h(Slider,{s,set,name:"zoom",label:"Zoom",min:55,max:200,suffix:"%"})),
+      h(TrayColumn,{key:"note",title:"Note",grow:true},
+        h("p",{className:"field-note"},
+          "Dragging the chart moves these directly, and the readout under the preview follows.")),
+    ];
+
+    return [];
+  };
   const flatView=graph.view(ctx);
   const chart=is3d?h(s.graph==="calendar"?CalendarHeatmap3D:Heatmap3D,flatView.props):flatView;
 
-  return h("div",{className:"shell"},
-    h("aside",{className:"sidebar"},
-      h("div",enter(0),
-        h("div",{className:"brand"},
-          h("div",{className:"brand-mark"},h(BrandMark)),
-          h("div",null,
-            h("div",{className:"brand-name"},"heatmap-ui")),
-          h("span",{className:"badge",style:{marginLeft:"auto"}},"v0.1.0"))),
+  return h("div",{className:"playground-root"},
+    h("div",{className:"theme-transition-scope",ref:themeScopeRef},
+      h("div",{className:"shell"},
+        h("aside",{className:"sidebar"},
 
-      h("div",{...enter(1),className:"group enter"},
-        h(Tabs,{value:s.theme,label:"Theme",onChange:v=>set("theme",v),options:[
-          {value:"system",label:"System",icon:"monitor"},
-          {value:"light",label:"Light",icon:"sun"},
-          {value:"dark",label:"Dark",icon:"moon"}]})),
+          /* The header holds what the whole panel is about: the product, the
+           * theme, and which of the two renderers everything below applies to.
+           * The theme switcher used to float over the rail on a hard-coded
+           * offset; here it simply belongs to a row. */
+          h("div",{...enter(0),className:"panel-head enter"},
+            h("div",{className:"panel-head-top"},
+              h("div",{className:"brand"},
+                h("div",{className:"brand-mark"},h(BrandMark)),
+                h("div",{className:"brand-copy"},
+                  h("div",{className:"brand-name"},"heatmap-ui"),
+                  h("span",{className:"brand-version"},"v0.1.0"))),
+              h(Tabs,{value:s.theme,label:"Theme",compact:true,
+                onChange:(v,meta)=>changeTheme(v,meta),options:[
+                  {value:"system",label:"System",icon:"monitor"},
+                  {value:"light",label:"Light",icon:"sun"},
+                  {value:"dark",label:"Dark",icon:"moon"}]})),
+            h(DimensionSwitch,{value:s.dimension,onChange:v=>set("dimension",v)})),
 
-      h("hr",{className:"separator"}),
+          h("div",{className:"panel-body"},
+            h(Section,{...enter(1),id:"sec-chart",title:"Chart",
+              open:openSections.chart,onToggle:()=>toggleSection("chart"),
+              modified:chartChanged,onReset:()=>resetKeys(CHART_KEYS)},
+              h(Select,{s,set,name:"graph",label:"Type",options:GRAPH_NAMES,
+                format:k=>GRAPHS[k].label,optionPreview:graph=>h(ChartPreview,{graph})}),
+              ...dataControls,
+              dataControls.length===0?h("p",{className:"field-note"},
+                "Fixed at 24 × 7 — hours down, weekdays across. Nothing to set."):null),
 
-      h("div",{...enter(2),className:"group enter"},
-        h("h2",{className:"group-title"},"Graph"),
-        h(Select,{s,set,name:"graph",label:"Type",options:GRAPH_NAMES,
-          format:k=>GRAPHS[k].label}),
-        ...graph.controls(s,set)),
+            h(Section,{...enter(2),id:"sec-cells",title:"Cells",
+              open:openSections.cells,onToggle:()=>toggleSection("cells"),
+              modified:modified.cells,onReset:()=>resetKeys(cellKeys)},
+              h(CellControls,{s,set,is3d})),
 
-      h("hr",{className:"separator"}),
+            h(Section,{...enter(3),id:"sec-colour",title:"Colour",
+              open:openSections.colour,onToggle:()=>toggleSection("colour"),
+              modified:modified.colour||modified.scale,onReset:()=>resetKeys(colourKeys)},
+              h(ColourControls,{s,set,is3d,isDark,empty})),
 
-      h("div",{...enter(3),className:"group enter"},
-        h("h2",{className:"group-title"},"Cells"),
-        is3d?h(Select,{s,set,name:"shape3d",label:"Shape",options:SHAPES_3D,
-          format:k=>k.charAt(0).toUpperCase()+k.slice(1)}):h(Select,{s,set,name:"shape",label:"Shape",options:SHAPES,
-          optionPreview:shape=>h(ShapePreview,{shape})}),
-        is3d?h("div",{className:"material-options",role:"group","aria-label":"Block style"},
-          MATERIALS.map(m=>h("button",{key:m.value,type:"button",className:"material",
-            "aria-pressed":s.blockStyle===m.value,onClick:()=>set("blockStyle",m.value)},
-            h(MaterialPreview,{kind:m.value}),m.label))):
-          h(Select,{s,set,name:"encode",label:"Encode",options:["color","size","both"]}),
-        is3d?h(Select,{s,set,name:"theme3d",label:"3D theme",options:THEMES_3D}):null,
-        is3d?h(Select,{s,set,name:"material",label:"Surface",options:SURFACE_MATERIALS,
-          format:k=>k==="pattern"?"Bitmap pattern":"Solid fill"}):null,
-        is3d?h(Select,{s,set,name:"animation",label:"Entrance",options:ANIMATIONS_3D,
-          format:k=>k==="grow"?"Grow":"None"}):null,
-        h(Slider,{s,set,name:"cellSize",label:"Size",min:6,max:30,suffix:"px"}),
-        h(Slider,{s,set,name:"gap",label:"Gap",min:0,max:10,suffix:"px"}),
-        is3d?h(Slider,{s,set,name:"maxHeight",label:"Height",min:10,max:150}):null),
+            h(Section,{...enter(4),id:"sec-labels",title:"Labels",
+              open:openSections.labels,onToggle:()=>toggleSection("labels"),
+              modified:modified.labels,onReset:()=>resetKeys(labelKeys)},
+              h(LabelControls,{s,set,is3d,graph}))),
 
-      is3d?h(React.Fragment,null,
-        h("hr",{className:"separator"}),
-        h("div",{className:"group"},
-          h("h2",{className:"group-title"},"Camera"),
-          h("div",{className:"camera-presets",role:"group","aria-label":"Camera presets"},
-            CAMERA_PRESETS.map(p=>h("button",{key:p.label,type:"button",className:"camera-preset",
-              "aria-pressed":Math.abs(s.yaw-p.yaw)<1&&Math.abs(s.pitch-p.pitch)<1,
-              onClick:()=>setS(prev=>({...prev,yaw:p.yaw,pitch:p.pitch,zoom:100}))},p.label))),
-          h(Slider,{s,set,name:"yaw",label:"Rotation",min:-180,max:180,suffix:"°"}),
-          h(Slider,{s,set,name:"pitch",label:"Tilt",min:15,max:75,suffix:"°"}),
-          h(Slider,{s,set,name:"zoom",label:"Zoom",min:55,max:200,suffix:"%"}))):null,
-
-      h("hr",{className:"separator"}),
-
-      h("div",{...enter(4),className:"group enter"},
-        h("h2",{className:"group-title"},is3d?"Colour scale":"Scale"),
-        h(Select,{s,set,name:"scale",label:"Scale",options:["quantile","linear","log"]}),
-        h(Slider,{s,set,name:"levels",label:"Levels",min:2,max:8}),
-        is3d?h("p",{className:"field-note"},"Height is linear: twice the value, twice as tall. Colour bands are independent."):null),
-
-      h("hr",{className:"separator"}),
-
-      h("div",{...enter(5),className:"group enter"},
-        h("h2",{className:"group-title"},"Colour"),
-        h("div",{className:"field-stack"},
-          h(Select,{s,set,name:"ramp",label:"Ramp",options:RAMP_NAMES,
-            format:k=>k===CUSTOM?"Custom":RAMPS[k].label,
-            optionPreview:ramp=>h(RampPreview,{ramp,dark:isDark,base:s.base})}),
-          s.ramp===CUSTOM?h(Field,{label:"Base",htmlFor:"c-base"},
-            h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
-          h("div",{className:"ramp","aria-hidden":"true"},
-            [empty,...colors].map((c,i)=>h("span",{key:i,style:{background:c}})))),
-        h(Field,{label:"Empty",htmlFor:"c-empty"},
-          h("span",{className:"swatch"},
-            h("input",{id:"c-empty",type:"color",value:empty,
-              onChange:e=>set("empty",e.target.value)})))),
-
-      h("hr",{className:"separator"}),
-
-      h("div",{...enter(6),className:"group enter"},
-        h("h2",{className:"group-title"},"Labels"),
-        !is3d?h(Switch,{s,set,name:"showValues",label:"Values"}):null,
-        h(Switch,{s,set,name:"showLegend",label:"Legend"})),
-
-      h("div",enter(7,{marginTop:"auto",paddingTop:"8px"}),
-        h("button",{type:"button",className:"btn btn-ghost",
-          onClick:()=>setS(p=>({...DEFAULTS,theme:p.theme}))},
-          h(Icon,{name:"reset",stroke:2}),"Reset controls"))),
+          h("div",{className:"panel-foot"},
+            h("span",{className:"rail-changes"},
+              changed>0?h("span",{className:"pill-mark","aria-hidden":"true"}):null,
+              changed===0?"Matches defaults":changed===1?"1 area changed":changed+" areas changed"),
+            h("button",{type:"button",className:"btn btn-ghost",
+              onClick:()=>{setTray(null);setS(p=>({...DEFAULTS,theme:p.theme}));}},
+              h(Icon,{name:"reset",size:14,stroke:2}),"Reset all"))),
 
     h("main",{className:"stage"},
       h("header",enter(0),
         h("div",{className:"page-heading"},
-          h("div",null,
-            h("h1",{className:"page-title"},"Playground"),
-            h("p",{className:"page-desc"},is3d?"Give your data a little perspective.":"Every cell tells a story.")),
-          h(DimensionSwitch,{value:s.dimension,onChange:v=>set("dimension",v)})),
+        h("div",null,
+            h("h1",{className:"page-title"},"Playground"))),
         h("p",{className:"page-desc"},
-          is3d?"Explore familiar grids in three dimensions. Sculpt the cells, find your angle, and make the patterns stand out.":"A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps."),
+          "A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps."),
         h("div",{className:"install"},
           h("code",null,"npm i @tb962/heatmap-ui"),
           h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
 
-      h("section",{...enter(1),className:"card enter"+(is3d?" three-card":"")},
-        h("div",{className:"card-head"},
-          h("div",null,
-            is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
-            h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
-            h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
-          h("div",{className:"chart-view-actions"},
-            h("span",{className:"badge"},graph.badge(s)),
-            is3d?h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view"):null)),
-        h("div",{className:"card-body"},chart),
-        is3d?h("div",{className:"chart-status"},
-          h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
-          h("span",null,"Drag to orbit · + / − to zoom"),
-          h("span",null,h("strong",null,Math.round(s.yaw)+"°")," / ",Math.round(s.pitch)+"°")):null),
+      /* Camera is preview-specific, so it remains available beside the chart
+       * while dimension, data, cells, colour, scale, and labels live in the rail. */
+      sections.length?h("div",{...enter(1),className:"strip enter"},
+        sections.map(section=>h(Pill,{key:section.key,name:section.name,
+          value:pillValue[section.key],open:openTray===section.key,
+          modified:modified[section.key],
+          onClick:()=>setTray(current=>current===section.key?null:section.key)}))):null,
 
-      h("section",{...enter(2),className:"card enter"},
-        h("div",{className:"card-head"},
-          h("div",null,
-            h("h2",{className:"card-title"},"This exact chart, as code"),
-            h("p",{className:"card-desc"},
-              "Every prop above is in effect. Only the data is yours — its shape is in the first comment.")),
-          h(CopyButton,{text:code})),
-        h("pre",{className:"code"},code))));
+      openTray?h(Tray,{label:sections.find(x=>x.key===openTray).name,
+        onClose:()=>setTray(null)},trayColumns()):null,
+
+      h("section",{...enter(2),className:"card preview-card enter"+(is3d?" three-card":"")},
+        h("div",{className:"preview-tabs",role:"tablist","aria-label":"Chart view"},
+          h("button",{id:"chart-preview-tab",type:"button",className:"preview-tab",role:"tab",
+            "aria-selected":panelView==="preview","aria-controls":"chart-view-panel",
+            onClick:()=>setPanelView("preview")},"Preview"),
+          h("button",{id:"chart-code-tab",type:"button",className:"preview-tab",role:"tab",
+            "aria-selected":panelView==="code","aria-controls":"chart-view-panel",
+            onClick:()=>setPanelView("code")},"Code")),
+        h("div",{id:"chart-view-panel",className:"preview-surface",role:"tabpanel",
+          "aria-labelledby":panelView==="preview"?"chart-preview-tab":"chart-code-tab"},
+          panelView==="preview"
+            ? h(React.Fragment,null,
+                h("div",{className:"card-head"},
+                  h("div",null,
+                    is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
+                    h("div",{className:"card-title-line"},
+                      h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
+                      h("span",{className:"badge"},graph.badge(s))),
+                    h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
+                  is3d?h("div",{className:"chart-view-actions"},
+                    h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view")):null),
+                h("div",{className:"card-body"},chart),
+                is3d?h("div",{className:"chart-status"},
+                  h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
+                  h("span",null,"Drag to orbit · + / − to zoom"),
+                  h("span",null,h("strong",null,Math.round(s.yaw)+"°")," / ",Math.round(s.pitch)+"°")):null)
+            : h("div",{className:"code-panel"},
+                h("div",{className:"code-panel-head"},
+                  h("div",null,
+                    h("h2",{className:"card-title"},"This exact chart, as code"),
+                    h("p",{className:"card-desc"},
+                      "Every prop above is in effect. Only the data is yours — its shape is in the first comment.")),
+                  h(CopyButton,{text:code})),
+                h("pre",{className:"code"},code))))))),
+  );
 }
 createRoot(document.getElementById("root")).render(h(App));
 </script>

@@ -12,7 +12,7 @@
 
   display: inline-flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
   font-family: inherit;
 }
 
@@ -107,17 +107,18 @@
 
 .heatmap__row-labels {
   grid-area: 2 / 1;
-  /* The gutter is a margin, not a grid gap, so it disappears with the track. */
-  margin-right: 6px;
+  /* Size the track to its widest label; the gutter is a margin, not a grid gap. */
+  margin-inline-end: 6px;
   position: relative;
-  width: 2.2em;
+  display: grid;
+  align-content: start;
+  width: max-content;
 }
 
 .heatmap__row-label {
-  position: absolute;
-  right: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   color: var(--heatmap-label);
   font-size: 10px;
   line-height: 1;
