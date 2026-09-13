@@ -2035,7 +2035,7 @@ function suppressTransitions(){
   document.head.append(style);
   // Read for the side effect: forces the new colours to commit while the
   // override still applies, so no transition ever starts.
-  const _flushReflow=document.body.offsetHeight;
+  void document.body.offsetHeight;
   requestAnimationFrame(()=>requestAnimationFrame(()=>style.remove()));
 }
 
@@ -2281,7 +2281,6 @@ const GRAPHS = {
 };
 const GRAPH_NAMES = Object.keys(GRAPHS);
 const CHART_KEYS=["graph",...new Set(GRAPH_NAMES.flatMap(g=>GRAPHS[g].dataKeys))];
-const GRAPH_LABELS = GRAPH_NAMES.map(k => GRAPHS[k].label);
 
 /** Entrance props: the index drives an even 100ms cadence between groups. */
 const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
