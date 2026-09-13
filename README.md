@@ -1,7 +1,13 @@
 # heatmap-ui
 
+[![CI](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@tb962/heatmap-ui.svg)](https://www.npmjs.com/package/@tb962/heatmap-ui)
+[![license](https://img.shields.io/npm/l/@tb962/heatmap-ui.svg)](LICENSE)
+
 A headless heatmap for React. Any grid, not just calendars — and it does not
 lie about gaps.
+
+**[Try it in the playground →](https://tb962.github.io/heatmap-ui/)**
 
 ```bash
 npm install @tb962/heatmap-ui
@@ -372,6 +378,10 @@ Tooltip colours follow `prefers-color-scheme`; set
 
 ## Playground
 
+**<https://tb962.github.io/heatmap-ui/>** — no install required.
+
+To run it against your own working copy:
+
 ```bash
 npm run build
 npx serve .
@@ -391,6 +401,9 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the longer version, and
+[SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
 
