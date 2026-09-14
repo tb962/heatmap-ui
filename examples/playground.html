@@ -2019,8 +2019,8 @@ function snippet(s,empty,ground,colors,stride){
   const named=[tag];
   if(s.ramp===CUSTOM&&!themed3d(s)) named.push("deriveRamp");
   return [
-    `import { ${named.join(", ")} } from "@tb962/heatmap-ui";`,
-    'import "@tb962/heatmap-ui/styles.css";',
+    `import { ${named.join(", ")} } from "@thilakbhat/heatmap-ui";`,
+    'import "@thilakbhat/heatmap-ui/styles.css";',
     "",
     ...(setup.length?[...setup,""]:[]),
     `<${tag}`,
@@ -2514,8 +2514,8 @@ function App(){
         h("p",{className:"page-desc"},
           "A headless heatmap for React. Eight cell shapes, a 3D mode, and every colour under your control."),
         h("div",{className:"install"},
-          h("code",null,"npm i @tb962/heatmap-ui"),
-          h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
+          h("code",null,"npm i @thilakbhat/heatmap-ui"),
+          h(CopyButton,{text:"npm i @thilakbhat/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),
 
       /* Camera is preview-specific, so it remains available beside the chart
        * while dimension, data, cells, colour, scale, and labels live in the rail. */
