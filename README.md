@@ -3,8 +3,8 @@
 ![heatmap-ui playground preview](docs/cover.png)
 
 [![CI](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@tb962/heatmap-ui.svg)](https://www.npmjs.com/package/@tb962/heatmap-ui)
-[![license](https://img.shields.io/npm/l/@tb962/heatmap-ui.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@thilakbhat/heatmap-ui.svg)](https://www.npmjs.com/package/@thilakbhat/heatmap-ui)
+[![license](https://img.shields.io/npm/l/@thilakbhat/heatmap-ui.svg)](LICENSE)
 
 A headless heatmap toolkit for React. Eight cell shapes, an interactive 3D mode
 that runs on plain SVG, and control over every colour, size and label on the
@@ -13,12 +13,12 @@ grid.
 **[Try it in the playground →](https://tb962.github.io/heatmap-ui/)**
 
 ```bash
-npm install @tb962/heatmap-ui
+npm install @thilakbhat/heatmap-ui
 ```
 
 ```tsx
-import { CalendarHeatmap } from "@tb962/heatmap-ui";
-import "@tb962/heatmap-ui/styles.css";
+import { CalendarHeatmap } from "@thilakbhat/heatmap-ui";
+import "@thilakbhat/heatmap-ui/styles.css";
 
 <CalendarHeatmap values={days} weeks={20} showLegend />;
 ```
@@ -82,7 +82,7 @@ and `encode="both"` carry intensity redundantly.
 ## The core
 
 ```tsx
-import { Heatmap } from "@tb962/heatmap-ui";
+import { Heatmap } from "@thilakbhat/heatmap-ui";
 
 <Heatmap rows={24} columns={7} values={matrix} />;
 ```
@@ -146,8 +146,8 @@ Use `Heatmap3D` for any grid, or `CalendarHeatmap3D` for dates. Both render a
 shaded, interactive SVG scene without WebGL.
 
 ```tsx
-import { Heatmap3D, CalendarHeatmap3D } from "@tb962/heatmap-ui";
-import "@tb962/heatmap-ui/styles.css";
+import { Heatmap3D, CalendarHeatmap3D } from "@thilakbhat/heatmap-ui";
+import "@thilakbhat/heatmap-ui/styles.css";
 
 <Heatmap3D
   rows={2}
@@ -228,7 +228,7 @@ For an email, README image, or scheduled asset, use the same scene without React
 or a DOM:
 
 ```ts
-import { renderHeatmap3DSvg } from "@tb962/heatmap-ui";
+import { renderHeatmap3DSvg } from "@thilakbhat/heatmap-ui";
 
 const svg = renderHeatmap3DSvg({
   rows: 1,
