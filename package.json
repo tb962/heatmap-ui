@@ -21,7 +21,15 @@
     "./styles.css": "./src/styles.css",
     "./package.json": "./package.json"
   },
-  "files": ["dist", "src/styles.css", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "src/styles.css",
+    "README.md",
+    "LICENSE",
+    "docs/cover.png",
+    "docs/playground-2d.png",
+    "docs/playground-3d.png"
+  ],
   "sideEffects": ["**/*.css"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -40,7 +48,7 @@
     "typescript": "^5.0.0"
   },
   "repository": { "type": "git", "url": "git+https://github.com/tb962/heatmap-ui.git" },
-  "homepage": "https://github.com/tb962/heatmap-ui#readme",
+  "homepage": "https://tb962.github.io/heatmap-ui/",
   "bugs": { "url": "https://github.com/tb962/heatmap-ui/issues" },
   "author": "tb962",
   "keywords": [
