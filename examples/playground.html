@@ -1238,7 +1238,7 @@ const DEFAULTS = {
   dimension:"2d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
   theme3d:"green", material:"solid", animation:"grow",
   yaw:-35, pitch:38, zoom:100,
-  shape:"rounded", encode:"color", scale:"quantile",
+  shape:"rounded", encode:"color", scale:"linear",
   cellSize:13, gap:3, levels:4,
   ramp:"green", empty:null, showLegend:true, showValues:false, theme:"system", base:"#8b5cf6",
   graph:"calendar",
@@ -1823,8 +1823,8 @@ function PaletteChoices({s,set,isDark}){
 
 function ScaleChoices({value,onChange}){
   const options=[
-    {value:"quantile",label:"Quantile",tip:"Equalize values across bands"},
     {value:"linear",label:"Linear",tip:"Keep numeric distances proportional"},
+    {value:"quantile",label:"Quantile",tip:"Equalize values across bands"},
     {value:"log",label:"Log",tip:"Reveal patterns across large ranges"},
   ];
   return h(PRow,{label:"Scale"},
@@ -1976,7 +1976,7 @@ function snippet(s,empty,ground,colors,stride){
     if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
     if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
   }
-  if(s.scale!=="quantile")p.push(`  scale="${s.scale}"`);
+  if(s.scale!=="linear")p.push(`  scale="${s.scale}"`);
   if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
   if(s.gap!==3)p.push(`  gap={${s.gap}}`);
   if(s.levels!==4)p.push(`  levels={${s.levels}}`);
@@ -2492,7 +2492,7 @@ function App(){
         h("div",null,
             h("h1",{className:"page-title"},"Playground"))),
         h("p",{className:"page-desc"},
-          "A headless heatmap for React: any grid, quantile shading, and gaps that read as gaps."),
+          "A headless heatmap for React. Eight cell shapes, a 3D mode, and every colour under your control."),
         h("div",{className:"install"},
           h("code",null,"npm i @tb962/heatmap-ui"),
           h(CopyButton,{text:"npm i @tb962/heatmap-ui",label:"Copy",className:"btn btn-ghost"}))),

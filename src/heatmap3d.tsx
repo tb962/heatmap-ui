@@ -24,7 +24,7 @@ function Surface({ face, camera, color, patternId }: { face: Heatmap3DFaceGeomet
 /** An SVG city of values. Every tower's highest point is its numerical height;
  * detail never adds an unmeasured storey, and unknowns never become buildings. */
 export function Heatmap3D({
-  rows, columns, values, scale = "quantile", levels: levelsProp, thresholds,
+  rows, columns, values, scale = "linear", levels: levelsProp, thresholds,
   shape = "rectangle", blockStyle = "solid", cellSize = 13, gap = 3,
   theme: themeProp, material = "solid", patterns, faceColor, animation = "none",
   colors: colorsProp, emptyColor: emptyColorProp, unknownOpacity = 0.5,

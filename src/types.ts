@@ -63,8 +63,9 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
   columns: number;
   values?: HeatmapValues;
 
-  /** Shade bands. "quantile" ranks the active values; it is the default because
-   *  activity data is heavy-tailed and scaling against the maximum flattens it. */
+  /** Shade bands. "linear" is the default and cuts at even fractions of the
+   *  largest value, the behaviour readers know from GitHub. "quantile" ranks the
+   *  active values instead, which suits heavy-tailed data. */
   scale?: HeatmapScale;
   /** Number of shade bands. Defaults to the length of `colors`, else 4. */
   levels?: number;
