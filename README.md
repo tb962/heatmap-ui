@@ -1,5 +1,7 @@
 # heatmap-ui
 
+![heatmap-ui playground preview](docs/cover.png)
+
 [![CI](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@tb962/heatmap-ui.svg)](https://www.npmjs.com/package/@tb962/heatmap-ui)
 [![license](https://img.shields.io/npm/l/@tb962/heatmap-ui.svg)](LICENSE)
