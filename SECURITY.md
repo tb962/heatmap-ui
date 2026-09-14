@@ -29,7 +29,7 @@ be named.
 This is a rendering library. It takes your data and produces DOM and SVG. The
 things worth reporting are:
 
-- Any input to a component that escapes as markup or script — values, labels,
+- Any input to a component that escapes as markup or script: values, labels,
   tooltip text, class names, or CSS custom properties reaching the DOM
   unescaped.
 - A crash or unbounded loop reachable from ordinary data (`NaN`, `Infinity`,
