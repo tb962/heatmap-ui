@@ -22,7 +22,7 @@ the TypeScript compiles too.
 | `npm test`          | Builds, then runs the `node --test` suite      |
 
 CI runs `npm ci` on Node 20, 22 and 24. If you change dependencies, commit the
-updated `package-lock.json` — `npm ci` fails on a lockfile that has drifted
+updated `package-lock.json`. `npm ci` fails on a lockfile that has drifted
 from `package.json`.
 
 ## The playground
@@ -39,20 +39,26 @@ page needs network access. The hosted copy is at
 
 ## What the library is trying to be
 
-Two commitments shape most review comments, so they are worth knowing up front:
+A wide set of heatmaps you can shape yourself, rather than one chart with a
+few knobs. Shapes, 3D forms, block styles, themes, patterns and colour
+resolvers are all props, and new ones are welcome if they compose with what is
+already there.
 
-**It does not flatten data.** Quantile banding is the default because linear
-banding collapses heavy-tailed data into the palest shade. Changes that make
-the default less faithful to the distribution need a good argument.
+Three things shape most review comments, so they are worth knowing up front.
 
-**A gap is not a zero.** `known: false` renders differently from a zero value
-and reads differently to a screen reader. Anything that erases that distinction
-is a bug, not a simplification.
+It is headless. The library ships structure and a stylesheet you can replace.
+Please do not add opinionated visual design to the core, and do not add runtime
+dependencies. React is a peer dependency and the package has no others.
 
-It is also headless: the library ships structure and a stylesheet you can
-replace. Please do not add opinionated visual design to the core, and do not
-add runtime dependencies — React is a peer dependency and the package has no
-others.
+Defaults follow the conventions readers already know. `scale="linear"` is the
+default because that is how GitHub and most other heatmaps band their colours.
+Quantile, log and custom functions are there for people who need them, and the
+README says when to reach for each. A change to a default needs an argument
+about what readers expect, not only about what is statistically nicer.
+
+A gap is not a zero. `known: false` renders differently from a zero value and
+reads differently to a screen reader. Anything that erases that distinction is
+a bug, not a simplification.
 
 ## Pull requests
 
