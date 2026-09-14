@@ -32,9 +32,14 @@ export type Heatmap3DThemePreset = {
  * Small, concrete presets keep the 3D component usable without a token
  * system. The colour ramps stay in hex because that is the public notation of
  * this package and can be copied straight into a static SVG.
+ *
+ * `color` is the neutral default. It carries no opinion past a starting ramp,
+ * so whatever `colors` you pass is what you see. The other three decide
+ * colour for you, `seasonal` and `rainbow` per column, which is the reason to
+ * reach for them; leave `colors` unset when you do.
  */
 export const HEATMAP_3D_THEMES = {
-  green: {
+  color: {
     colors: ["#9be9a8", "#40c463", "#30a14e", "#216e39"],
     emptyColor: "#e5e9e7",
     floor: "#f0f1f3",
@@ -140,12 +145,12 @@ function hslToHex(hue: number, saturation: number, lightness: number): string {
   return toHex({ r: (channels[0] + match) * 255, g: (channels[1] + match) * 255, b: (channels[2] + match) * 255 });
 }
 
-export function resolve3DTheme(theme: Heatmap3DThemeName = "green"): Heatmap3DThemePreset {
+export function resolve3DTheme(theme: Heatmap3DThemeName = "color"): Heatmap3DThemePreset {
   return HEATMAP_3D_THEMES[theme];
 }
 
 export function resolve3DColors({
-  theme = "green",
+  theme = "color",
   colors,
   column = 0,
   columns = 1,
@@ -185,7 +190,7 @@ export function resolve3DColors({
 export function resolve3DFaceColor({
   color,
   face,
-  theme = "green",
+  theme = "color",
   cell,
   level,
   faceColor,

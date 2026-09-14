@@ -53,7 +53,7 @@ export function Heatmap3D({
   const size = Math.max(1, finitePositive(cellSize, 13));
   const gutter = finitePositive(gap, 3);
   const maxHeight = finitePositive(maxHeightProp, 100);
-  const theme = themeProp ?? "green";
+  const theme = themeProp ?? "color";
   const levels = Math.max(1, levelsProp ?? colorsProp?.length ?? 4);
   const emptyColor = emptyColorProp ?? resolve3DTheme(theme).emptyColor;
   const visualOptions: Heatmap3DVisualOptions = {

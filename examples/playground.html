@@ -1200,7 +1200,10 @@ const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ri
 const SHAPES_3D = ["rectangle","circle","bar"];
 const MATERIALS = [{value:"solid",label:"Solid"},{value:"lego",label:"LEGO"},{value:"building",label:"Skyline"}];
 const SURFACE_MATERIALS = ["solid","pattern"];
-const THEMES_3D = ["green","night","seasonal","rainbow"];
+/* `color` is not a palette of its own: it hands the bands to whatever ramp is
+ * selected. The other three decide colour themselves, which is why the palette
+ * controls step aside while one of them is on. */
+const THEMES_3D = ["color","night","seasonal","rainbow"];
 const ANIMATIONS_3D = ["none","grow"];
 const CAMERA_PRESETS = [{label:"Isometric",yaw:-35,pitch:38},{label:"Front",yaw:0,pitch:22},{label:"Top",yaw:0,pitch:75}];
 /* Presentation-only palettes. The package stays neutral and accepts a plain
@@ -1236,7 +1239,7 @@ const RAMP_NAMES = [...Object.keys(RAMPS), CUSTOM];
 
 const DEFAULTS = {
   dimension:"2d", shape3d:"rectangle", blockStyle:"solid", maxHeight:75,
-  theme3d:"green", material:"solid", animation:"grow",
+  theme3d:"color", material:"solid", animation:"grow",
   yaw:-35, pitch:38, zoom:100,
   shape:"rounded", encode:"color", scale:"linear",
   cellSize:13, gap:3, levels:4,
@@ -1835,15 +1838,22 @@ function ScaleChoices({value,onChange}){
         onClick:()=>onChange(option.value)},option.label))));
 }
 
+/* A named 3D theme owns every colour it needs, cells and chrome alike, so the
+ * palette, its base, and the empty swatch have nothing left to say. They come
+ * back with `color`, which is the theme that defers to them. Bands and scale
+ * stay either way: they shape the ramp rather than choose it. */
 function ColourControls({s,set,is3d,isDark,empty}){
+  const themed=is3d&&s.theme3d!=="color";
   return [
     is3d?h(Select,{key:"theme3d",s,set,name:"theme3d",label:"3D theme",options:THEMES_3D,format:title}):null,
-    h(PaletteChoices,{key:"palette",s,set,isDark}),
-    s.ramp===CUSTOM?h(PRow,{key:"base",label:"Base",htmlFor:"c-base"},
+    themed?h("p",{key:"themed",className:"field-note"},
+      `The ${title(s.theme3d)} theme picks its own colours. Switch to Color to paint the bands yourself.`):null,
+    themed?null:h(PaletteChoices,{key:"palette",s,set,isDark}),
+    !themed&&s.ramp===CUSTOM?h(PRow,{key:"base",label:"Base",htmlFor:"c-base"},
       h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
     h(ScaleChoices,{key:"scale",value:s.scale,onChange:value=>set("scale",value)}),
     h(NumRow,{key:"bands",s,set,name:"levels",label:"Bands",min:2,max:8}),
-    h(PRow,{key:"empty",label:"Empty",htmlFor:"c-empty"},
+    themed?null:h(PRow,{key:"empty",label:"Empty",htmlFor:"c-empty"},
       h("span",{className:"swatch"},
         h("input",{id:"c-empty",type:"color",value:empty,
           onChange:e=>set("empty",e.target.value)}))),
@@ -1961,6 +1971,9 @@ function CopyButton({text,label="Copy",className="btn"}){
 }
 
 /* --- Code sample ---------------------------------------------------------- */
+/** True while a 3D theme other than `color` is deciding the colours itself. */
+const themed3d=s=>s.dimension==="3d"&&s.theme3d!=="color";
+
 function snippet(s,empty,ground,colors,stride){
   const recipe = GRAPHS[s.graph].code(s,{stride});
   const { setup=[], lines } = recipe;
@@ -1969,7 +1982,7 @@ function snippet(s,empty,ground,colors,stride){
   if(s.dimension==="3d"){
     p.push(`  shape="${s.shape3d}"`, `  blockStyle="${s.blockStyle}"`, `  maxHeight={${s.maxHeight}}`);
     p.push(`  yaw={${Math.round(s.yaw*100)/100}}`, `  pitch={${Math.round(s.pitch*100)/100}}`, `  zoom={${Math.round(s.zoom)/100}}`);
-    if(s.theme3d!=="green")p.push(`  theme="${s.theme3d}"`);
+    if(s.theme3d!=="color")p.push(`  theme="${s.theme3d}"`);
     if(s.material!=="solid")p.push(`  material="${s.material}"`);
     if(s.animation!=="none")p.push(`  animation="${s.animation}"`);
   } else {
@@ -1980,27 +1993,31 @@ function snippet(s,empty,ground,colors,stride){
   if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
   if(s.gap!==3)p.push(`  gap={${s.gap}}`);
   if(s.levels!==4)p.push(`  levels={${s.levels}}`);
-  if(s.ramp===CUSTOM){
-    // deriveRamp defaults ground to white, so it only needs naming on a dark
-    // surface — without it the copied code would not reproduce what is shown.
-    const opts=`{ levels: ${s.levels}`+(ground===GROUND_LIGHT?"":`, ground: "${ground}"`)+" }";
-    p.push(`  colors={deriveRamp("${s.base}", ${opts})}`);
-  }
-  // The component's own default is the GitHub preset at its natural light
-  // length, so that is the only case where the colours can go unstated.
-  else if(s.ramp!=="green"||s.levels!==RAMPS.green.light.length||(ground===GROUND_DARK&&(s.dimension!=="3d"||s.theme3d==="green"))){
-    p.push(`  // ${RAMPS[s.ramp].label} palette`);
-    p.push(`  colors={${JSON.stringify(colors)}}`);
+  // A named 3D theme colours the cells and the chrome itself. Printing a ramp
+  // beside it would only invite a reader to fight it.
+  if(!themed3d(s)){
+    if(s.ramp===CUSTOM){
+      // deriveRamp defaults ground to white, so it only needs naming on a dark
+      // surface. Without it the copied code would not reproduce what is shown.
+      const opts=`{ levels: ${s.levels}`+(ground===GROUND_LIGHT?"":`, ground: "${ground}"`)+" }";
+      p.push(`  colors={deriveRamp("${s.base}", ${opts})}`);
+    }
+    // The component's own default is the GitHub preset at its natural light
+    // length, so that is the only case where the colours can go unstated.
+    else if(s.ramp!=="green"||s.levels!==RAMPS.green.light.length||ground===GROUND_DARK){
+      p.push(`  // ${RAMPS[s.ramp].label} palette`);
+      p.push(`  colors={${JSON.stringify(colors)}}`);
+    }
   }
   if(s.dimension!=="3d"&&s.showValues){
     p.push("  cellContent={(cell) => cell.known && cell.value > 0 ? cell.value : null}");
   }
-  if(empty!==EMPTY_LIGHT&&!(s.dimension==="3d"&&s.empty===null&&s.theme3d!=="green"))p.push(`  emptyColor="${empty}"`);
+  if(!themed3d(s)&&empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
   if(s.theme!=="system")p.push(`  data-heatmap-theme="${s.theme}"`);
   if(s.showLegend)p.push("  showLegend");
 
   const named=[tag];
-  if(s.ramp===CUSTOM) named.push("deriveRamp");
+  if(s.ramp===CUSTOM&&!themed3d(s)) named.push("deriveRamp");
   return [
     `import { ${named.join(", ")} } from "@tb962/heatmap-ui";`,
     'import "@tb962/heatmap-ui/styles.css";',
@@ -2362,8 +2379,9 @@ function App(){
     gap:s.gap,levels:s.levels,showLegend:s.showLegend,
     ...(is3d?{shape:s.shape3d,blockStyle:s.blockStyle,maxHeight:s.maxHeight,
       theme:s.theme3d,material:s.material,animation:s.animation,
-      ...(s.ramp==="green"&&s.levels===RAMPS.green.light.length&&(s.theme3d!=="green"||!isDark)?{}:{colors}),
-      ...(s.empty===null&&s.theme3d!=="green"?{}:{emptyColor:empty}),
+      // Only `color` hands its bands over; the rest would be overruled by a
+      // ramp they never asked for, so the palette is withheld from them.
+      ...(themed3d(s)?{}:{colors,emptyColor:empty}),
       yaw:s.yaw,pitch:s.pitch,zoom:s.zoom/100,onCameraChange:setCamera}
       :{colors,emptyColor:empty,shape:s.shape,encode:s.encode,
         ...(s.showValues?{cellContent:c=>c.known&&c.value>0?c.value:null}: {})})};
@@ -2383,7 +2401,9 @@ function App(){
     cells: is3d
       ? differs("shape3d","blockStyle","material","animation","cellSize","gap","maxHeight")
       : differs("shape","encode","cellSize","gap"),
-    colour: differs("ramp","base","empty")||(is3d&&differs("theme3d")),
+    // A withheld palette is not a change worth flagging, so under a named
+    // theme the badge counts the theme alone.
+    colour: (is3d&&differs("theme3d"))||(!themed3d(s)&&differs("ramp","base","empty")),
     scale: differs("scale","levels"),
     labels: differs("showLegend",...(is3d?[]:["showValues"]),...graph.labelKeys),
     camera: differs("yaw","pitch","zoom"),
@@ -2524,7 +2544,7 @@ function App(){
                   h("div",null,
                     is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
                     h("div",{className:"card-title-line"},
-                      h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+s.theme3d:"")),
+                      h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+title(s.theme3d):"")),
                       h("span",{className:"badge"},graph.badge(s))),
                     h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
                   is3d?h("div",{className:"chart-view-actions"},
