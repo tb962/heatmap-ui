@@ -116,7 +116,7 @@ export type Heatmap3DBlockStyle = "solid" | "lego" | "building";
 export type Heatmap3DCamera = { yaw: number; pitch: number; zoom: number };
 /** `side` is a convenient alias for patterns; geometry reports left/right. */
 export type Heatmap3DFace = "top" | "side" | "left" | "right";
-export type Heatmap3DThemeName = "green" | "night" | "seasonal" | "rainbow";
+export type Heatmap3DThemeName = "color" | "night" | "seasonal" | "rainbow";
 export type Heatmap3DMaterial = "solid" | "pattern";
 export type Heatmap3DAnimation = "none" | "grow";
 
@@ -147,7 +147,7 @@ export type Heatmap3DFaceColor = (args: Heatmap3DFaceColorArgs) => string;
 export type Heatmap3DProps = Omit<HeatmapProps, "shape" | "encode" | "radius" | "minScale" | "cellContent"> & {
   shape?: Heatmap3DShape;
   blockStyle?: Heatmap3DBlockStyle;
-  /** Built-in face palettes and surface treatments. */
+  /** Surface treatment. `color` defers to `colors`; the rest set their own. */
   theme?: Heatmap3DThemeName;
   /** Solid fills or reusable SVG bitmap fills. */
   material?: Heatmap3DMaterial;

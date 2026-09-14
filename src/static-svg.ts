@@ -218,7 +218,7 @@ export function renderHeatmap3DSvg({
   const size = Math.max(1, finitePositive(cellSize, 13));
   const gutter = finitePositive(gap, 3);
   const maxHeight = finitePositive(maxHeightProp, 100);
-  const theme = themeProp ?? "green";
+  const theme = themeProp ?? "color";
   const levels = Math.max(1, levelsProp ?? colors?.length ?? 4);
   const themeEmptyColor = emptyColor ?? resolve3DTheme(theme).emptyColor;
   const camera = normalizeCamera({ yaw, pitch, zoom });

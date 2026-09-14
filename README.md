@@ -35,7 +35,7 @@ override.
 | Cell shapes | `rounded`, `square`, `circle`, `diamond`, `hexagon`, `plus`, `bar`, `ring` |
 | 3D forms | `rectangle`, `circle` (cylinder), `bar` (slender column) |
 | 3D block styles | `solid`, `lego` (studs), `building` (windowed facades) |
-| 3D themes | `green`, `night`, `seasonal`, `rainbow` |
+| 3D themes | `color` (your ramp), `night`, `seasonal`, `rainbow` |
 | Surfaces | flat fills, or SVG bitmap patterns you define per colour level |
 | Intensity | colour, cell size, or both |
 | Shading | `linear`, `quantile`, `log`, or a function you supply |
@@ -161,7 +161,15 @@ import "@tb962/heatmap-ui/styles.css";
 <CalendarHeatmap3D values={days} weeks={20} blockStyle="building" />;
 ```
 
-![A 3D heatmap with varied heights, seasonal colours, and an outlined missing slot.](docs/heatmap-3d.svg)
+### Playground previews
+
+**2D calendar view**
+
+![2D calendar heatmap preview in the playground.](docs/playground-2d.png)
+
+**3D calendar view**
+
+![3D calendar heatmap preview in the playground, with height-based values and orbit controls.](docs/playground-3d.png)
 
 Height is proportional to the actual value: with the default domain, 40 is
 twice as tall as 20. The `scale`, `levels`, and `thresholds` props only affect
@@ -172,7 +180,7 @@ tiles. Missing slots get an outline, and hidden slots are omitted.
 | --- | --- | --- |
 | `shape` | `"rectangle"` | `"rectangle"`, `"circle"` (cylinder), or `"bar"` (slender column). |
 | `blockStyle` | `"solid"` | `"solid"`, `"lego"` (studs), or `"building"` (windowed facades). |
-| `theme` | `"green"` | `"green"`, `"night"`, `"seasonal"`, or `"rainbow"`; presets include face-aware palette neutrals. |
+| `theme` | `"color"` | `"color"` paints with `colors` and sets only the face-aware neutrals around it. `"night"`, `"seasonal"`, and `"rainbow"` bring their own ramp, so leave `colors` unset with those. |
 | `material` | `"solid"` | `"solid"` or `"pattern"`; pattern material uses SVG bitmap marks over each face. |
 | `patterns` | built-in | Optional `{ top, side }` arrays of `{ width, bitmap, background, foreground }`, indexed by colour level. |
 | `faceColor` | preset shading | `(args) => string` resolver for different top, left, and right fills. |
