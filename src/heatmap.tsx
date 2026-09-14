@@ -16,7 +16,7 @@ export function Heatmap({
   rows,
   columns,
   values,
-  scale = "quantile",
+  scale = "linear",
   levels: levelsProp,
   thresholds: thresholdsProp,
   shape = "rounded",

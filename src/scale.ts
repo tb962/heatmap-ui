@@ -1,12 +1,14 @@
 /**
  * Shading strategies.
  *
- * The default is quantile, which is deliberately unlike most heatmap
- * libraries. Activity data is heavy-tailed — a single long day can be twenty
- * times the median — so cutting bands at fractions of the maximum drops the
- * bulk of the data into the palest shade and throws away the detail the chart
- * exists to show. Ranking the active values keeps every band populated
- * whatever the unit.
+ * Linear is the default, matching GitHub and most other heatmaps: bands are cut
+ * at even fractions of the largest value, so a reader who knows one chart can
+ * read this one.
+ *
+ * Quantile is available for heavy-tailed data. When a single long day is twenty
+ * times the median, linear bands drop most of the grid into the palest shade;
+ * ranking the active values instead keeps every band populated whatever the
+ * unit. Pass scale="quantile" when the distribution warrants it.
  */
 
 /** Band ceilings from the quantiles of the active values, ascending. */
