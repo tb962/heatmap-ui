@@ -1,7 +1,14 @@
 # heatmap-ui
 
-A headless heatmap for React. Any grid, not just calendars — and it does not
-lie about gaps.
+[![CI](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@tb962/heatmap-ui.svg)](https://www.npmjs.com/package/@tb962/heatmap-ui)
+[![license](https://img.shields.io/npm/l/@tb962/heatmap-ui.svg)](LICENSE)
+
+A headless heatmap toolkit for React. Eight cell shapes, an interactive 3D mode
+that runs on plain SVG, and control over every colour, size and label on the
+grid.
+
+**[Try it in the playground →](https://tb962.github.io/heatmap-ui/)**
 
 ```bash
 npm install @tb962/heatmap-ui
@@ -14,32 +21,61 @@ import "@tb962/heatmap-ui/styles.css";
 <CalendarHeatmap values={days} weeks={20} showLegend />;
 ```
 
-## Why another one
+## What you get
 
-Most React heatmaps are GitHub-calendar clones that get two things wrong.
+Five entry points: `Heatmap` for any grid, `CalendarHeatmap` for dates, their
+`Heatmap3D` and `CalendarHeatmap3D` counterparts, and `renderHeatmap3DSvg`,
+which returns an SVG string without React or a DOM.
 
-**They flatten your data.** Shade bands are usually cut at fractions of the
-largest value. Real activity data is heavy-tailed — one long day can be twenty
-times the median — so most of the chart collapses into the palest shade. On a
-real dataset, linear banding put 58% of active days in band 1; quantile
-banding put 25% in each.
+Everything below is a prop. None of it needs a wrapper, a fork, or a stylesheet
+override.
 
-```
-linear    ████████████████████████████ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒ ░░░░░
-quantile  ████████████ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒ ░░░░░░░░░░░░
-```
+| | |
+| --- | --- |
+| Cell shapes | `rounded`, `square`, `circle`, `diamond`, `hexagon`, `plus`, `bar`, `ring` |
+| 3D forms | `rectangle`, `circle` (cylinder), `bar` (slender column) |
+| 3D block styles | `solid`, `lego` (studs), `building` (windowed facades) |
+| 3D themes | `green`, `night`, `seasonal`, `rainbow` |
+| Surfaces | flat fills, or SVG bitmap patterns you define per colour level |
+| Intensity | colour, cell size, or both |
+| Shading | `linear`, `quantile`, `log`, or a function you supply |
+| Colour | any ramp, palest first, with separate colours for zero and for no data |
+| Labels | row and column labels, tooltips, and arbitrary content inside cells |
+| Layout | cell size, gap, corner radius, and a predicate for hiding slots |
 
-`scale="quantile"` is the default here. `"linear"` and `"log"` are available,
-as is any function you like.
+### The 3D mode
 
-**They confuse "no data" with "zero".** A day your collector could not observe
-is not a day you did nothing. Pass `known: false` and the slot renders at
-reduced opacity and reads as "No data" to a screen reader, instead of
-implying a day off.
+`Heatmap3D` draws an isometric scene in SVG. No WebGL, no canvas, no 3D library,
+and no second bundle: it ships in the same package as the flat grid and takes
+the same data, labels, tooltips, click handlers and legend props.
 
-**And they assume a calendar.** The core takes `rows` and `columns`. A
-24 × 7 punchcard, a months × years grid, or an arbitrary matrix are all just
-heatmaps. `CalendarHeatmap` is a thin adapter on top, not the foundation.
+Height comes from the value itself rather than from its colour band, so a 40
+is twice as tall as a 20. Blocks can be plain solids, LEGO bricks with
+studs sized to fit, or buildings with lit windows. You can drive the camera
+yourself or let the reader drag it. If you would rather ship a picture,
+`renderHeatmap3DSvg` renders the identical scene to a string for an email or a
+README.
+
+### Customisation
+
+Colour is a prop, not a theme file. Pass any ramp and the bands follow it. Pass
+`faceColor` and you control the top, left and right fills of every 3D block
+independently. Pass `patterns` and each colour level gets its own SVG bitmap,
+written as binary or hexadecimal rows.
+
+The stylesheet only handles structure and four CSS variables, so you are not
+fighting a design system to make the chart look like yours.
+
+### Data that stays honest
+
+A slot with no observation is not a slot with a zero. Pass `known: false` and it
+renders at reduced opacity and announces "No data" to a screen reader, instead
+of quietly reading as a day off. Ragged grids are supported through
+`isSlotHidden`, so a cohort table missing its future quarters does not have to
+invent them.
+
+Colour alone is invisible to roughly one reader in twelve, so `encode="size"`
+and `encode="both"` carry intensity redundantly.
 
 ## The core
 
@@ -49,7 +85,7 @@ import { Heatmap } from "@tb962/heatmap-ui";
 <Heatmap rows={24} columns={7} values={matrix} />;
 ```
 
-`values` accepts either shape:
+You can pass `values` in either form:
 
 ```ts
 // Dense. null means no data; 0 means measured and empty.
@@ -61,31 +97,51 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 
 | Prop | Default | |
 | --- | --- | --- |
-| `rows`, `columns` | — | Grid size. Required. |
+| `rows`, `columns` | required | Grid size. |
 | `values` | `[]` | Matrix or sparse cells. |
-| `scale` | `"quantile"` | `"quantile"`, `"linear"`, `"log"`, or `(value, all) => 0..1`. |
+| `scale` | `"linear"` | `"linear"`, `"quantile"`, `"log"`, or `(value, all) => 0..1`. |
 | `levels` | `colors.length` | Number of shade bands. |
-| `thresholds` | — | Explicit band ceilings; skips `scale`. |
+| `thresholds` | none | Explicit band ceilings; skips `scale`. |
 | `shape` | `"rounded"` | See below. |
 | `encode` | `"color"` | `"color"`, `"size"`, or `"both"`. |
 | `cellSize` | `13` | Pixels. |
 | `gap` | `3` | Pixels. |
-| `radius` | — | Overrides the shape's corner rounding. |
+| `radius` | none | Overrides the shape's corner rounding. |
 | `colors` | GitHub green | The ramp, palest first. |
 | `emptyColor` | `#ebedf0` | A known value of zero. |
 | `unknownOpacity` | `0.5` | Applied to slots with no data. |
-| `isSlotHidden` | — | `(row, column) => boolean` for ragged grids. |
-| `rowLabels`, `columnLabels` | — | Positioned against the grid. |
-| `tooltip` | — | `(cell) => ReactNode`; opens on hover and focus. |
-| `cellContent` | — | Optional visual React node centred inside each cell; values are hidden unless provided. |
-| `cellLabel` | — | `(cell) => string`; the accessible name for a cell. |
-| `onCellClick` | — | Makes cells buttons. |
+| `isSlotHidden` | none | `(row, column) => boolean` for ragged grids. |
+| `rowLabels`, `columnLabels` | none | Positioned against the grid. |
+| `tooltip` | none | `(cell) => ReactNode`; opens on hover and focus. |
+| `cellContent` | none | Optional visual React node centred inside each cell; values are hidden unless provided. |
+| `cellLabel` | none | `(cell) => string`; the accessible name for a cell. |
+| `onCellClick` | none | Makes cells buttons. |
 | `showLegend` | `false` | less/more key, plus "no data" when relevant. |
+
+### Shading
+
+`scale="linear"` is the default. Bands are cut at even fractions of the largest
+value, which is what GitHub and most other heatmaps do, so a reader who knows
+one chart can read yours without relearning it.
+
+Switch to `quantile` when the data has a long tail. Ranking the active values
+keeps every band populated whatever the unit. On one real dataset, linear
+banding put 58% of active days in the first band while quantile banding put 25%
+in each:
+
+```
+linear    ████████████████████████████ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒ ░░░░░
+quantile  ████████████ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒ ░░░░░░░░░░░░
+```
+
+`log` suits values spanning orders of magnitude. A function gets the value and
+the full set and returns 0..1, and `thresholds` skips the whole question by
+naming the band ceilings yourself.
 
 ## 3D heatmaps
 
-Use `Heatmap3D` for any grid, or `CalendarHeatmap3D` for dates. Both render
-an interactive, shaded SVG scene without a WebGL dependency.
+Use `Heatmap3D` for any grid, or `CalendarHeatmap3D` for dates. Both render a
+shaded, interactive SVG scene without WebGL.
 
 ```tsx
 import { Heatmap3D, CalendarHeatmap3D } from "@tb962/heatmap-ui";
@@ -105,10 +161,12 @@ import "@tb962/heatmap-ui/styles.css";
 <CalendarHeatmap3D values={days} weeks={20} blockStyle="building" />;
 ```
 
+![A 3D heatmap with varied heights, seasonal colours, and an outlined missing slot.](docs/heatmap-3d.svg)
+
 Height is proportional to the actual value: with the default domain, 40 is
 twice as tall as 20. The `scale`, `levels`, and `thresholds` props only affect
-colour bands. LEGO studs fit inside that height. A measured zero is a flat
-tile; missing data is outlined; hidden slots are omitted entirely.
+colour bands. LEGO studs fit inside that height. Measured zeroes are flat
+tiles. Missing slots get an outline, and hidden slots are omitted.
 
 | Prop | Default | Behaviour |
 | --- | --- | --- |
@@ -118,28 +176,28 @@ tile; missing data is outlined; hidden slots are omitted entirely.
 | `material` | `"solid"` | `"solid"` or `"pattern"`; pattern material uses SVG bitmap marks over each face. |
 | `patterns` | built-in | Optional `{ top, side }` arrays of `{ width, bitmap, background, foreground }`, indexed by colour level. |
 | `faceColor` | preset shading | `(args) => string` resolver for different top, left, and right fills. |
-| `animation` | `"none"` | `"grow"` adds a staggered entrance; the stylesheet swaps to a no-travel fade for reduced motion. |
+| `animation` | `"none"` | `"grow"` adds a staggered entrance; reduced motion uses a fade instead. |
 | `maxHeight` | `100` | Maximum elevation in the same grid units as cell size and gap. |
 | `heightDomain` | `[0, largest positive value]` | Fixed numeric domain for comparisons across charts. Out-of-range values clamp. |
 | `yaw`, `pitch`, `zoom` | `-35`, `38`, `1` | Camera orbit, elevation, and magnification. |
-| `onCameraChange` | — | Receives `{ yaw, pitch, zoom }` after camera interactions. |
+| `onCameraChange` | none | Receives `{ yaw, pitch, zoom }` after camera interactions. |
 | `interactive` | `true` | Enables pointer dragging and keyboard camera control. |
 | `showControls` | `true` | Shows zoom and camera-reset buttons. |
 
-The shared data, labels, colours, tooltips, click callbacks, and legend props
-work in 3D. `encode`, `radius`, and `minScale` belong to the 2D component.
-Negative values retain their labels but render at the zero plane; this first
-3D version is intended for nonnegative activity and magnitude data.
+3D accepts the same data, labels, tooltips, click callbacks, and legend props.
+`encode`, `radius`, and `minScale` belong to the 2D component. Negative values
+keep their labels but render at the zero plane. The 3D component is intended
+for nonnegative activity and magnitude data.
 
-Drag to orbit. Focus the chart and use arrow keys to rotate, `+` / `-` to
-zoom, or `Home` to reset. Cells expose their values to assistive technology,
-and click handlers also respond to Enter or Space.
+Drag to orbit the scene. Focus the chart to use the arrow keys, `+` / `-`, or
+`Home` to rotate, zoom, or reset it. Cells expose their values to assistive
+technology. Click handlers also respond to Enter and Space.
 
 ### Patterns, themes, and static SVG
 
-The built-in patterns are deliberately small and repeatable. A row can be a
-number, a hexadecimal string, or a binary string, with its most-significant bit
-drawn on the left:
+The built-in patterns are small and repeatable. A row can be a number, a
+hexadecimal string, or a binary string. The most-significant bit is drawn on
+the left:
 
 ```tsx
 <Heatmap3D
@@ -156,8 +214,8 @@ drawn on the left:
 />
 ```
 
-For an email, README, or scheduled asset, use the same scene without React or
-a DOM:
+For an email, README image, or scheduled asset, use the same scene without React
+or a DOM:
 
 ```ts
 import { renderHeatmap3DSvg } from "@tb962/heatmap-ui";
@@ -172,15 +230,15 @@ const svg = renderHeatmap3DSvg({
 });
 ```
 
-`renderHeatmap3DSvg` shares the height domain, geometry, face visibility, paint
-order, themes, and pattern definitions with `Heatmap3D`; its output is a
-non-interactive accessible SVG snapshot.
+`renderHeatmap3DSvg` uses the same height domain, geometry, face visibility,
+paint order, themes, and pattern definitions as `Heatmap3D`. It returns an
+accessible, non-interactive SVG snapshot.
 
 ## Shapes
 
 | | |
 | --- | --- |
-| `rounded` `square` `circle` | The familiar three. |
+| `rounded` `square` `circle` | The basic shapes. |
 | `diamond` | A 45° square. Reads denser over long ranges. |
 | `hexagon` | Offset rows, honeycomb. The standard form for hex-binned data. |
 | `plus` | Stays legible at sizes where circles turn to mush. |
@@ -189,20 +247,21 @@ non-interactive accessible SVG snapshot.
 
 ## Encoding without colour
 
-Colour alone is invisible to roughly one reader in twelve.
+Colour alone is not enough for roughly one reader in twelve.
 
 ```tsx
 <Heatmap encode="both" ... />
 ```
 
-`"size"` scales each cell within its slot so intensity survives in greyscale;
-`"both"` encodes it twice. `minScale` sets how small the weakest cell may get.
+With `"size"`, each cell scales within its slot, so intensity still reads in
+greyscale. `"both"` uses colour and size. `minScale` sets the smallest size for
+the weakest cell.
 
 ### Values inside cells
 
-`cellContent` is a visual slot for short values, counts, or other compact
-content. It is deliberately separate from `cellLabel`, so a dense visual can
-still have a complete accessible description:
+Use `cellContent` for short values, counts, or other compact content. It is
+separate from `cellLabel`, so a dense visual can still have a complete
+accessible description:
 
 ```tsx
 <Heatmap
@@ -214,9 +273,9 @@ still have a complete accessible description:
 />
 ```
 
-The content is marked decorative for assistive technology; use `cellLabel` for
-meaning. It is a flat-grid feature. The 3D add-on keeps its values in labels
-and tooltips so it can remain an SVG renderer without an HTML overlay layer.
+The content is decorative to assistive technology; use `cellLabel` for its
+meaning. This option belongs to the flat grid. The 3D component keeps values in
+labels and tooltips, so it stays an SVG renderer without an HTML overlay.
 
 ## Calendar
 
@@ -235,19 +294,18 @@ and tooltips so it can remain an SVG renderer without an HTML overlay layer.
 
 `weeks` defaults to 53 when omitted.
 
-It owns everything date-shaped: mapping dates onto the grid, month labels,
-weekday labels, and a default accessible name per day. Days after `to` are
-hidden rather than drawn as missing, so the final column is honestly partial.
-Every `Heatmap` prop passes through.
+The calendar adapter handles date mapping, month labels, weekday labels, and a
+default accessible name for each day. It hides days after `to` instead of
+drawing them as missing, so a final partial column stays partial. Every
+`Heatmap` prop passes through.
 
 ## Recipes
 
-The core takes `rows` and `columns`, so most "kinds" of heatmap are a shape of
-data rather than a different component. Nothing below is a special mode — it is
-all `Heatmap` with different numbers. The playground emits exactly these, for
-whatever you have tweaked.
+Most heatmap variants are just different grid dimensions. Each example below
+uses `Heatmap`; the playground can generate the same code from its current
+settings.
 
-### Punchcard — hours down, weekdays across
+### Punchcard: hours down, weekdays across
 
 ```tsx
 const hourLabels = Array.from({ length: 24 }, (_, i) => (i % 6 === 0 ? `${i}:00` : ""));
@@ -265,12 +323,12 @@ const dayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 />
 ```
 
-### Cohort retention — a grid that is genuinely ragged
+### Cohort retention: a ragged grid
 
-A cohort that signed up last week has no week-10 number, and never will until
-ten weeks pass. That slot does not exist, so `isSlotHidden` keeps it out of the
-grid entirely — which is not the same as `known: false`, a slot that exists and
-was not measured.
+A cohort that signed up last week has no week-10 number until ten weeks pass.
+That slot does not exist, so `isSlotHidden` removes it from the grid. This
+differs from `known: false`, which represents an existing slot that was not
+measured.
 
 ```tsx
 <Heatmap
@@ -285,9 +343,9 @@ was not measured.
 />
 ```
 
-### Uptime — wide and short, with days that were never collected
+### Uptime: wide and short, with days that were never collected
 
-The other kind of gap. These slots exist; nobody was watching them.
+This is the other kind of gap: the slots exist, but nobody was watching them.
 
 ```tsx
 <Heatmap
@@ -302,10 +360,10 @@ The other kind of gap. These slots exist; nobody was watching them.
 />
 ```
 
-### Co-occurrence — symmetric, diagonal removed
+### Co-occurrence: symmetric, diagonal removed
 
-The diagonal is every label matched against itself, which is noise at full
-strength. Drop it rather than let it dominate the scale.
+The diagonal compares each label with itself, so it adds noise at full strength.
+Hide it instead of letting it dominate the scale.
 
 ```tsx
 <Heatmap
@@ -321,10 +379,9 @@ strength. Drop it rather than let it dominate the scale.
 
 ### A note on label density
 
-`Heatmap` positions the text you give it and cannot measure it, so it will
-happily draw `"Wednesday"` across a 16px column and let it collide with its
-neighbour. Deciding how many labels fit is the caller's job. Either pick a
-shorter form, or thin them:
+`Heatmap` positions the labels you provide, but it cannot measure their width.
+A label such as `"Wednesday"` can run into a neighbouring 16px column. Decide
+how many labels fit in the calling code. Use shorter labels or thin them:
 
 ```tsx
 // Keep only as many labels as the column stride can hold.
@@ -339,24 +396,24 @@ function thinLabels(texts, stride) {
 columnLabels={thinLabels(dates, cellSize + gap)}
 ```
 
-`CalendarHeatmap` already does this for month labels, dropping one that would
-land too close to the previous.
+`CalendarHeatmap` already thins month labels when one would land too close to
+the previous label.
 
 ## Accessibility
 
-- The grid is a labelled `group`. It is not `role="img"`, which would hide the
-  focusable cells inside it.
-- Cells take focus only when they carry information — a `cellLabel`, a
-  `tooltip`, or an `onCellClick`.
+- The grid uses a labelled `group`, not `role="img"`, so the cells inside it can
+  still receive focus.
+- Cells receive focus only when they carry information, such as a `cellLabel`,
+  `tooltip`, or `onCellClick`.
 - Tooltips open on focus as well as hover, after a 300ms delay, and are wired
   with `aria-describedby`.
-- `encode` exists so intensity is not carried by colour alone.
+- `encode` lets you carry intensity without relying on colour alone.
 - Hover and focus scaling is dropped under `prefers-reduced-motion`.
 
 ## Styling
 
-The stylesheet is structural. Colour comes from props, so there is no token
-layer to fight. The few colours it does define belong to the tooltip:
+The stylesheet handles structure. Props provide the colour, and the stylesheet
+defines four variables you can override:
 
 ```css
 .heatmap {
@@ -367,21 +424,25 @@ layer to fight. The few colours it does define belong to the tooltip:
 }
 ```
 
-Tooltip colours follow `prefers-color-scheme`; set
+Tooltip colours follow `prefers-color-scheme`. Set
 `data-heatmap-theme="light" | "dark"` to pin them.
 
 ## Playground
+
+**<https://tb962.github.io/heatmap-ui/>**. No install required.
+
+To run it from your working copy:
 
 ```bash
 npm run build
 npx serve .
 ```
 
-Open `examples/playground.html`. Switch between 2D and 3D, choose Solid, LEGO,
-or Skyline cells, and orbit the scene. Pick a graph — calendar, punchcard, cohort
-retention, co-occurrence, uptime — tweak any prop, and the panel below the
-chart shows the code that renders exactly what you are looking at, imports and
-all.
+Open `examples/playground.html`. You can switch between 2D and 3D, choose Solid,
+LEGO, or Skyline cells, and orbit the scene. The graph choices include calendar,
+punchcard, cohort retention, co-occurrence, and uptime. Adjust a prop and the
+panel below the chart shows the exact code for the current view, including its
+imports.
 
 ## Development
 
@@ -391,6 +452,9 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+For contribution details, see [CONTRIBUTING.md](CONTRIBUTING.md). To report a
+vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 

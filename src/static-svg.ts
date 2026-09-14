@@ -187,7 +187,7 @@ export function renderHeatmap3DSvg({
   rows,
   columns,
   values,
-  scale = "quantile",
+  scale = "linear",
   levels: levelsProp,
   thresholds,
   shape = "rectangle",

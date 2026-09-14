@@ -1,0 +1,78 @@
+name: Release
+
+# Tag-driven release. Pushing a v* tag builds, verifies, publishes to npm and
+# opens the GitHub Release. npm publishing needs an automation token stored as
+# the NPM_TOKEN repository secret; without it the publish step is skipped
+# rather than failing, so the GitHub Release still gets cut.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Resolve the tag
+        id: tag
+        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: The tag must match the package version
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          tag="${{ steps.tag.outputs.name }}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "Tag $tag does not match package.json version $pkg."
+            exit 1
+          fi
+          echo "$tag matches package.json."
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not set — skipping the npm publish."
+            exit 0
+          fi
+          version="$(node -p "require('./package.json').version")"
+          if npm view "@tb962/heatmap-ui@$version" version >/dev/null 2>&1; then
+            echo "@tb962/heatmap-ui@$version is already on npm — nothing to publish."
+            exit 0
+          fi
+          npm publish --provenance --access public
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.tag.outputs.name }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists — leaving it alone."
+            exit 0
+          fi
+          gh release create "$tag" --title "$tag" --generate-notes

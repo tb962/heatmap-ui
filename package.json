@@ -1,7 +1,7 @@
 {
   "name": "@tb962/heatmap-ui",
   "version": "0.1.0",
-  "description": "A headless, honest heatmap for React. Any grid, quantile shading, and gaps that read as gaps.",
+  "description": "A headless heatmap toolkit for React. Any grid, eight cell shapes, a 3D SVG mode, and full control of colour, size and layout.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -45,7 +45,8 @@
   "author": "tb962",
   "keywords": [
     "heatmap", "react", "calendar-heatmap", "contribution-graph", "punchcard",
-    "hexbin", "data-visualization", "grid", "quantile", "accessible"
+    "hexbin", "data-visualization", "grid", "accessible", "headless",
+    "3d", "isometric", "svg", "themeable", "quantile"
   ],
   "engines": { "node": ">=20" },
   "publishConfig": { "access": "public" }
