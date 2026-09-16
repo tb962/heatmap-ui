@@ -67,6 +67,26 @@ function escapeXml(value: unknown): string {
     .replace(/'/g, "&apos;");
 }
 
+// Placeholder for the per-render scope; swapped for a content hash once the
+// markup is complete, so the same chart always gets the same class.
+const SCOPE = "heatmap3d-static-scope";
+
+/** FNV-1a, enough to give each distinct chart its own selector and pattern ids. */
+function hash(value: string): string {
+  let result = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    result ^= value.charCodeAt(index);
+    result = Math.imul(result, 0x01000193);
+  }
+  return (result >>> 0).toString(36);
+}
+
+/** Prefix every selector in a flat rule list so the styles only reach this SVG. */
+function scopeRules(rules: string, scope: string): string {
+  return rules.replace(/([^{}]+)\{([^{}]*)\}/g, (_, selectors: string, body: string) =>
+    `${selectors.split(",").map((selector) => `${scope} ${selector.trim()}`).join(",")}{${body}}`);
+}
+
 function number(value: number): string {
   return Number.isFinite(value) ? value.toFixed(3).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1") : "0";
 }
@@ -89,7 +109,7 @@ function surfaceMarkup(face: Heatmap3DFaceGeometry, camera: Heatmap3DCamera, vis
   const base = pattern
     ? `<path d="${path}" fill="${escapeXml(fill)}" class="heatmap3d__surface heatmap3d__surface-base" data-face="${face.face}" pointer-events="none"/>`
     : "";
-  const surface = `<path d="${path}" fill="${pattern ? `url(#${escapeXml(pattern)})` : escapeXml(fill)}" class="heatmap3d__surface" data-face="${face.face}" data-material="${pattern ? "pattern" : "solid"}/>`;
+  const surface = `<path d="${path}" fill="${pattern ? `url(#${escapeXml(pattern)})` : escapeXml(fill)}" class="heatmap3d__surface" data-face="${face.face}" data-material="${pattern ? "pattern" : "solid"}"/>`;
   const shade = `<path d="${path}" fill="${face.shade >= 0 ? "#fff" : "#071b19"}" opacity="${number(Math.abs(face.shade))}" pointer-events="none"/>`;
   const windows = (face.windows ?? []).map((window, index) => `<path d="${polygonPath(window, camera)}" class="heatmap3d__window" opacity="${index % 5 === 0 ? 0.2 : index % 3 === 0 ? 0.65 : 0.42}" pointer-events="none"/>`).join("");
   return `<g>${base}${surface}${shade}${windows}</g>`;
@@ -240,7 +260,7 @@ export function renderHeatmap3DSvg({
     faceColor,
     levels,
     columns,
-    patternPrefix: "heatmap3d-static-pattern",
+    patternPrefix: `${SCOPE}-pattern`,
   };
   const patternDefinitions = material === "pattern"
     ? (["top", "left", "right"] as const).flatMap((face) => Array.from({ length: levels }, (_, index) => {
@@ -265,10 +285,14 @@ export function renderHeatmap3DSvg({
   const floor = rectangle(0, 0, width + size, depth + size, -1);
   const label = ariaLabel ?? `3D heatmap, ${rows} by ${columns}, height represents value${unknownCount > 0 ? `, ${unknownCount} slots with no data` : ""}`;
   const preset = resolve3DTheme(theme);
-  const staticStyle = `<style>.heatmap3d__floor-edge{fill:${preset.floorEdge}}.heatmap3d__floor-surface{fill:${preset.floor};stroke:${preset.floorEdge};stroke-width:.7}.heatmap3d__grid-line{fill:none;stroke:${preset.grid};stroke-width:.45;opacity:.7}.heatmap3d__contact-shadow{fill:#111b2b;opacity:.13}.heatmap3d__surface{stroke:#ffffff30;stroke-width:.3;stroke-linejoin:round}.heatmap3d__surface-base{stroke:none}.heatmap3d__window{fill:${preset.window}}.heatmap3d__roof{fill:#07101b;fill-opacity:.11;stroke:#ffffff70;stroke-width:.45;stroke-linejoin:round}.heatmap3d__unknown{stroke:${preset.ink};stroke-width:.7;stroke-dasharray:2 1.8}.heatmap3d__axis line{stroke:${preset.ink};stroke-width:.6;opacity:.65}.heatmap3d__axis text,.heatmap3d__labels text,.heatmap3d__static-legend text{fill:${preset.ink};font-family:sans-serif;font-size:8px}.heatmap3d__static-legend text{font-size:8px}${animation === "grow" ? `@keyframes heatmap3d-grow{from{opacity:0;transform:translateY(4px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes heatmap3d-reduced-fade{from{opacity:.45}to{opacity:1}}.heatmap3d__scene[data-animation="grow"] .heatmap3d__cell[data-known="true"]{animation:heatmap3d-grow 240ms cubic-bezier(.23,1,.32,1) both;animation-delay:calc(min(var(--heatmap3d-index,0),32) * 26ms);transform-box:fill-box;transform-origin:center bottom}@media (prefers-reduced-motion:reduce){.heatmap3d__scene[data-animation="grow"] .heatmap3d__cell[data-known="true"]{animation:heatmap3d-reduced-fade 160ms ease-out both;animation-delay:0ms;transform:none}}` : ""}</style>`;
+  const baseRules = `.heatmap3d__floor-edge{fill:${preset.floorEdge}}.heatmap3d__floor-surface{fill:${preset.floor};stroke:${preset.floorEdge};stroke-width:.7}.heatmap3d__grid-line{fill:none;stroke:${preset.grid};stroke-width:.45;opacity:.7}.heatmap3d__contact-shadow{fill:#111b2b;opacity:.13}.heatmap3d__surface{stroke:#ffffff30;stroke-width:.3;stroke-linejoin:round}.heatmap3d__surface-base{stroke:none}.heatmap3d__window{fill:${preset.window}}.heatmap3d__roof{fill:#07101b;fill-opacity:.11;stroke:#ffffff70;stroke-width:.45;stroke-linejoin:round}.heatmap3d__unknown{stroke:${preset.ink};stroke-width:.7;stroke-dasharray:2 1.8}.heatmap3d__axis line{stroke:${preset.ink};stroke-width:.6;opacity:.65}.heatmap3d__axis text,.heatmap3d__labels text,.heatmap3d__static-legend text{fill:${preset.ink};font-family:sans-serif;font-size:8px}.heatmap3d__static-legend text{font-size:8px}`;
+  const growRules = `.heatmap3d__cell[data-known="true"]{animation:${SCOPE}-grow 240ms cubic-bezier(.23,1,.32,1) both;animation-delay:calc(min(var(--heatmap3d-index,0),32) * 26ms);transform-box:fill-box;transform-origin:center bottom}`;
+  const reducedRules = `.heatmap3d__cell[data-known="true"]{animation:${SCOPE}-reduced-fade 160ms ease-out both;animation-delay:0ms;transform:none}`;
+  const scope = `.${SCOPE}`;
+  const staticStyle = `<style>${scopeRules(baseRules, scope)}${animation === "grow" ? `@keyframes ${SCOPE}-grow{from{opacity:0;transform:translateY(4px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes ${SCOPE}-reduced-fade{from{opacity:.45}to{opacity:1}}${scopeRules(growRules, scope)}@media (prefers-reduced-motion:reduce){${scopeRules(reducedRules, scope)}}` : ""}</style>`;
   const patternMarkup = patternDefinitions.length > 0
     ? `<defs>${patternDefinitions.map(({ face, level, pattern }) => {
-        const id = `heatmap3d-static-pattern-${face}-${level}`;
+        const id = `${SCOPE}-pattern-${face}-${level}`;
         return `<pattern id="${id}" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse" width="${pattern.width}" height="${pattern.bitmap.length}"><rect width="${pattern.width}" height="${pattern.bitmap.length}" fill="${escapeXml(pattern.background)}"/><path d="${patternPath(pattern)}" fill="${escapeXml(pattern.foreground)}"/></pattern>`;
       }).join("")}</defs>`
     : "";
@@ -286,11 +310,12 @@ export function renderHeatmap3DSvg({
     const position = columnLabelPosition(entry.column);
     return `<text x="${number(position.x)}" y="${number(position.y + 10)}" text-anchor="middle">${escapeXml(entry.text)}</text>`;
   }).join("") ?? ""}</g>`;
-  const classNames = ["heatmap", "heatmap3d", "heatmap3d__scene", className].filter(Boolean).join(" ");
+  const classNames = ["heatmap", "heatmap3d", "heatmap3d__scene", SCOPE, className].filter(Boolean).join(" ");
   const cellsMarkup = geometry.map((entry, motionIndex) => cellMarkup(entry, motionIndex, camera, visualOptions, cellLabel, unknownOpacity)).join("");
   const legendColors = heatmap3DLegendColors(visualOptions);
   const legendMarkup = showLegend && legendColors.length > 0
     ? `<g class="heatmap3d__static-legend" aria-label="Legend"><text x="${number(bounds.x + 4)}" y="${number(bounds.y + bounds.height - 4)}">less</text>${legendColors.map((color, index) => `<rect x="${number(bounds.x + 25 + index * 9)}" y="${number(bounds.y + bounds.height - 11)}" width="7" height="7" rx="1" fill="${escapeXml(color)}"/>`).join("")}<text x="${number(bounds.x + 25 + legendColors.length * 9 + 2)}" y="${number(bounds.y + bounds.height - 4)}">more</text></g>`
     : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="${escapeXml(classNames)}" viewBox="${number(bounds.x)} ${number(bounds.y)} ${number(bounds.width)} ${number(bounds.height)}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto" role="img" aria-label="${escapeXml(label)}" data-total="${number(total)}" data-shape="${shape}" data-block-style="${blockStyle}" data-heatmap3d-theme="${theme}" data-material="${material}" data-animation="${animation}" data-interactive="false">${staticStyle}${patternMarkup}<g transform="translate(${number(sceneCenterX)} ${number(sceneCenterY)}) scale(${number(camera.zoom)}) translate(${-number(sceneCenterX)} ${-number(sceneCenterY)})">${floorMarkup}<g class="heatmap3d__axis" aria-hidden="true"><line x1="${number(axisBottom.x)}" y1="${number(axisBottom.y)}" x2="${number(axisTop.x)}" y2="${number(axisTop.y)}"/>${axisTicks}</g>${cellsMarkup}${labelsMarkup}${legendMarkup}</g></svg>`;
+  const markup = `<svg xmlns="http://www.w3.org/2000/svg" class="${escapeXml(classNames)}" viewBox="${number(bounds.x)} ${number(bounds.y)} ${number(bounds.width)} ${number(bounds.height)}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto" role="img" aria-label="${escapeXml(label)}" data-total="${number(total)}" data-shape="${shape}" data-block-style="${blockStyle}" data-heatmap3d-theme="${theme}" data-material="${material}" data-animation="${animation}" data-interactive="false">${staticStyle}${patternMarkup}<g transform="translate(${number(sceneCenterX)} ${number(sceneCenterY)}) scale(${number(camera.zoom)}) translate(${-number(sceneCenterX)} ${-number(sceneCenterY)})">${floorMarkup}<g class="heatmap3d__axis" aria-hidden="true"><line x1="${number(axisBottom.x)}" y1="${number(axisBottom.y)}" x2="${number(axisTop.x)}" y2="${number(axisTop.y)}"/>${axisTicks}</g>${cellsMarkup}${labelsMarkup}${legendMarkup}</g></svg>`;
+  return markup.split(SCOPE).join(`heatmap3d-static-${hash(markup)}`);
 }

@@ -218,3 +218,33 @@ test("the static renderer shares heights, patterns, and finite geometry", () => 
   assert.match(svg, /data-animation="grow"/);
   assert.doesNotMatch(svg, /NaN|Infinity|undefined/);
 });
+
+test("the static renderer emits well-formed markup for every material", () => {
+  for (const material of ["solid", "pattern"]) {
+    const svg = renderHeatmap3DSvg({ rows: 2, columns: 2, values: [[1, 2], [null, 4]], material, animation: "grow", showLegend: true, rowLabels: ["a", "b"] });
+    const markup = svg.replace(/<style>.*?<\/style>/s, "").replace(/<title>[^<]*<\/title>/g, "").replace(/<text([^>]*)>[^<]*<\/text>/g, "<text$1/>");
+    for (const [tag] of markup.matchAll(/<[^>]*>/g)) {
+      assert.match(tag, /^<\/?[\w:-]+(\s+[\w:-]+="[^"<]*")*\s*\/?>$/, `${material}: ${tag.slice(0, 120)}`);
+    }
+    assert.match(svg, new RegExp(`data-material="${material}"/>`));
+  }
+});
+
+test("the static renderer scopes its styles, keyframes, and pattern ids to the chart", () => {
+  const options = { rows: 1, columns: 2, values: [[1, 2]], material: "pattern", animation: "grow" };
+  const svg = renderHeatmap3DSvg(options);
+  const scope = svg.match(/class="[^"]*\b(heatmap3d-static-[a-z0-9]+)\b/)[1];
+  const css = svg.match(/<style>(.*?)<\/style>/s)[1];
+  const selectors = [...css.replace(/@keyframes [\w-]+\{(?:[^{}]*\{[^{}]*\})*\}/g, "").replace(/@media[^{]*\{/g, "").matchAll(/([^{}]+)\{[^{}]*\}/g)]
+    .flatMap((match) => match[1].split(","));
+  assert.ok(selectors.length > 0);
+  for (const selector of selectors) assert.ok(selector.startsWith(`.${scope} `), selector);
+  assert.doesNotMatch(css, /@keyframes heatmap3d-(grow|reduced-fade)\b/);
+  const ids = [...svg.matchAll(/<pattern id="([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(ids.length > 0 && ids.every((id) => id.startsWith(`${scope}-`)));
+  assert.doesNotMatch(svg, /heatmap3d-static-scope/);
+
+  assert.equal(renderHeatmap3DSvg(options), svg, "same options give the same scope");
+  const other = renderHeatmap3DSvg({ ...options, theme: "seasonal" });
+  assert.notEqual(other.match(/class="[^"]*\b(heatmap3d-static-[a-z0-9]+)\b/)[1], scope);
+});
