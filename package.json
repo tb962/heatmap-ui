@@ -1,6 +1,6 @@
 {
   "name": "@thilakbhat/heatmap-ui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A headless heatmap toolkit for React. Any grid, eight cell shapes, a 3D SVG mode, and full control of colour, size and layout.",
   "license": "MIT",
   "type": "module",
