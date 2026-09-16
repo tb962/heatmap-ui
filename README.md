@@ -107,10 +107,12 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `shape` | `"rounded"` | See below. |
 | `encode` | `"color"` | `"color"`, `"size"`, or `"both"`. |
 | `cellSize` | `13` | Pixels. |
+| `cellWidth` / `cellHeight` | `cellSize` | Pixels, per axis. Circles and rings stay round at the shorter side. |
 | `gap` | `3` | Pixels. |
 | `radius` | none | Overrides the shape's corner rounding. |
 | `colors` | GitHub green | The ramp, palest first. |
 | `emptyColor` | `#ebedf0` | A known value of zero. |
+| `cellColor` | none | `(cell) => string \| undefined`. Paints a cell directly for categorical data; `undefined` falls back to the ramp. |
 | `unknownOpacity` | `0.5` | Applied to slots with no data. |
 | `isSlotHidden` | none | `(row, column) => boolean` for ragged grids. |
 | `rowLabels`, `columnLabels` | none | Positioned against the grid. |
@@ -353,17 +355,25 @@ measured.
 />
 ```
 
-### Uptime: wide and short, with days that were never collected
+### Uptime: thin status pills, with days that were never collected
 
 This is the other kind of gap: the slots exist, but nobody was watching them.
+Status is a category, not a progression, so `cellColor` paints it directly and
+the ramp only covers what it returns `undefined` for.
 
 ```tsx
+const statusOf = (value: number) =>
+  value >= 99 ? "#3fb68b" : value >= 90 ? "#f2b53c" : value >= 25 ? "#ef8a3c" : "#e5534b";
+
 <Heatmap
   rows={services.length}
-  columns={30}
+  columns={90}
   values={uptime}                     // { row, column, value, known }[]
   rowLabels={services}                // ["api", "web", …]
-  columnLabels={dayLabels}
+  cellWidth={5}
+  cellHeight={16}
+  gap={2}
+  cellColor={(cell) => (cell.known ? statusOf(cell.value) : undefined)}
   ariaLabel="Service uptime by day"
   tooltip={(cell) =>
     cell.known ? `${cell.value}% up` : "not monitored"}

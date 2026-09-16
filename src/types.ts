@@ -74,7 +74,12 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
 
   shape?: HeatmapShape;
   encode?: HeatmapEncoding;
+  /** Width and height of a square cell. `cellWidth` and `cellHeight` override it per axis. */
   cellSize?: number;
+  /** Defaults to `cellSize`. Narrow it for status strips. */
+  cellWidth?: number;
+  /** Defaults to `cellSize`. Circles and rings stay round, drawn at the shorter side. */
+  cellHeight?: number;
   gap?: number;
   /** Overrides the shape's own corner rounding. */
   radius?: number | string;
@@ -82,6 +87,12 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
   colors?: readonly string[];
   /** A slot with a known value of zero. */
   emptyColor?: string;
+  /**
+   * Paints a cell directly, bypassing the ramp. Return `undefined` to fall back
+   * to it. Suits categorical data such as service status, where colours are not
+   * a progression. The legend still describes `colors`.
+   */
+  cellColor?: (cell: ResolvedCell) => string | undefined;
   /** Opacity applied to slots with no data. */
   unknownOpacity?: number;
   /** Smallest fraction of the slot a "size"-encoded cell may shrink to. */
@@ -144,7 +155,10 @@ export type Heatmap3DFaceColorArgs = {
 export type Heatmap3DFaceColor = (args: Heatmap3DFaceColorArgs) => string;
 
 /** Heights encode actual values linearly, independently of the colour bands. */
-export type Heatmap3DProps = Omit<HeatmapProps, "shape" | "encode" | "radius" | "minScale" | "cellContent"> & {
+export type Heatmap3DProps = Omit<
+  HeatmapProps,
+  "shape" | "encode" | "radius" | "minScale" | "cellContent" | "cellWidth" | "cellHeight" | "cellColor"
+> & {
   shape?: Heatmap3DShape;
   blockStyle?: Heatmap3DBlockStyle;
   /** Surface treatment. `color` defers to `colors`; the rest set their own. */
