@@ -430,6 +430,15 @@ body[data-scrubbing="true"] { cursor: ew-resize; user-select: none; }
   border-radius: 9999px;
   outline: 1px solid var(--hairline); outline-offset: -1px;
 }
+.tile-ramp .status-option-preview {
+  background: conic-gradient(var(--s0) 0 25%, var(--s1) 25% 50%, var(--s2) 50% 75%, var(--s3) 75% 100%);
+}
+.status-ctl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.status-ctl .nfield { flex: 1 1 0; min-width: 0; }
+.status-rest { color: var(--muted-foreground); font-size: 11px; }
+.status-chart { display: inline-grid; justify-items: start; gap: 12px; }
+.status-key { flex-wrap: wrap; gap: 6px 12px; }
+.status-key-item { display: inline-flex; align-items: center; gap: 5px; margin: 0 !important; }
 .tile-ramp:hover .custom-ramp-option-preview,
 .tile-ramp[aria-pressed="true"] .custom-ramp-option-preview { border-color: var(--foreground); }
 .option-tooltip { position: relative; }
@@ -1227,6 +1236,8 @@ const RAMPS = {
 
 const EMPTY_LIGHT = "#ebedf0";
 const EMPTY_DARK = "#2c2c2e";
+/** Heatmap3D's "color" theme default, which differs from the flat grid's. */
+const EMPTY_3D_DEFAULT = "#e5e9e7";
 
 // The surface the cells actually sit on, so a derived ramp's palest band fades
 // into the card rather than toward an imagined white. These are the sRGB
@@ -1254,7 +1265,10 @@ const DEFAULTS = {
   // Co-occurrence
   items:8, hideDiagonal:true,
   // Uptime
-  services:10, days:30,
+  services:10, days:30, cellWidth:5, cellHeight:16, showServices:true, showDates:true,
+  // Uptime colour. Thresholds are the uptime a day must fall below to reach each status.
+  colorBy:"status", statusPalette:"traffic", statusCustom:null,
+  degradedBelow:99, partialBelow:90, outageBelow:25,
 };
 
 /* --- Icons: one 24px lucide grid, currentColor, stroke matched to its label -- */
@@ -1391,10 +1405,33 @@ function uptimeValues(services,days){
       continue;
     }
     const roll=noise(row*64+column,9);
-    out.push({row,column,value:roll<0.1?Math.round(roll*400):Math.round(96+roll*4)});
+    const value=roll<0.03?Math.round(roll*1500)
+      :roll<0.12?Math.round((90+roll*50)*10)/10
+      :Math.round((99+roll)*10)/10;
+    out.push({row,column,value});
   }
   return out;
 }
+
+/* Status is a category, not a progression, so it is painted with `cellColor`
+ * rather than squeezed onto the ramp. Order runs from healthy to worst. */
+const STATUS_LABELS=["Operational","Degraded","Partial outage","Full outage"];
+const STATUS_PALETTES={
+  traffic:{label:"Traffic light",colors:()=>["#3fb68b","#f2b53c","#ef8a3c","#e5534b"]},
+  // Healthy days recede into a grey tied to the surface, so only trouble has colour.
+  quiet:{label:"Quiet",colors:dark=>[dark?"#4a4a50":"#c9c9cf","#f2b53c","#ef8a3c","#e5534b"]},
+  // Okabe–Ito: blue, yellow, orange, vermillion stay apart under red–green deficiency.
+  safe:{label:"Colour-blind safe",colors:()=>["#0072b2","#f0e442","#e69f00","#d55e00"]},
+};
+const STATUS_PALETTE_NAMES=[...Object.keys(STATUS_PALETTES),CUSTOM];
+
+/** Status colouring exists only for the 2D uptime strip. */
+const statusMode=s=>usesCellAxes(s)&&s.colorBy==="status";
+const statusColorsFor=(s,dark)=>s.statusPalette===CUSTOM&&s.statusCustom
+  ? s.statusCustom
+  : (STATUS_PALETTES[s.statusPalette]??STATUS_PALETTES.traffic).colors(dark);
+/** Index into STATUS_LABELS: the worst status whose threshold the value is below. */
+const statusIndex=(s,value)=>value<s.outageBelow?3:value<s.partialBelow?2:value<s.degradedBelow?1:0;
 
 /* --- Primitives ----------------------------------------------------------- */
 /** The tray's own row. The properties panel uses PRow. */
@@ -1790,6 +1827,18 @@ const CELL_METRICS={
   b:{name:"gap",label:"Gap",min:0,max:10,suffix:"px"},
 };
 
+/* Only the uptime strip reads as thin pills, so only it splits the cell into
+ * width and height. Every other preset keeps one square size. */
+const UPTIME_CELL_METRICS={
+  a:{name:"cellWidth",label:"Width",min:2,max:30,suffix:"px"},
+  b:{name:"cellHeight",label:"Height",min:4,max:40,suffix:"px"},
+};
+const usesCellAxes=s=>s.dimension!=="3d"&&s.graph==="uptime";
+const STATUS_KEYS=["colorBy","statusPalette","statusCustom","degradedBelow","partialBelow","outageBelow"];
+const cellKeysFor=s=>s.dimension==="3d"
+  ? ["shape3d","blockStyle","material","animation","cellSize","gap","maxHeight"]
+  : ["shape","encode",...(usesCellAxes(s)?["cellWidth","cellHeight"]:["cellSize"]),"gap"];
+
 function CellControls({s,set,is3d}){
   if(is3d) return [
     h(PBlock,{key:"block",label:"Block"},
@@ -1809,8 +1858,12 @@ function CellControls({s,set,is3d}){
 
   return [
     h(ShapeChoices,{key:"shape",value:s.shape,onChange:value=>set("shape",value)}),
-    h(NumPair,{key:"metrics",s,set,label:"Cell",...CELL_METRICS}),
-    h(EncodeChoice,{key:"encode",value:s.encode,onChange:value=>set("encode",value)}),
+    ...(usesCellAxes(s)
+      ? [h(NumPair,{key:"axes",s,set,label:"Cell",...UPTIME_CELL_METRICS}),
+         h(NumRow,{key:"gap",s,set,...CELL_METRICS.b})]
+      : [h(NumPair,{key:"metrics",s,set,label:"Cell",...CELL_METRICS})]),
+    // Size would follow the hidden scale, so status mode colours only.
+    statusMode(s)?null:h(EncodeChoice,{key:"encode",value:s.encode,onChange:value=>set("encode",value)}),
   ];
 }
 
@@ -1842,9 +1895,85 @@ function ScaleChoices({value,onChange}){
  * palette, its base, and the empty swatch have nothing left to say. They come
  * back with `color`, which is the theme that defers to them. Bands and scale
  * stay either way: they shape the ramp rather than choose it. */
-function ColourControls({s,set,is3d,isDark,empty}){
-  const themed=is3d&&s.theme3d!=="color";
+function ColorByChoice({value,onChange}){
+  const options=[
+    {value:"scale",label:"Scale",tip:"Shade by value along the palette"},
+    {value:"status",label:"Status",tip:"Paint each day by its status"},
+  ];
+  return h(PRow,{label:"Colour by"},
+    h("div",{className:"cell-segmented",role:"group","aria-label":"Colour by"},
+      options.map(option=>h("button",{key:option.value,type:"button",
+        className:"option-tooltip","aria-label":option.label+": "+option.tip,
+        "data-tooltip":option.tip,"aria-pressed":value===option.value,
+        onClick:()=>onChange(option.value)},option.label))));
+}
+
+function StatusPalettePreview({colors}){
+  return h("span",{className:"ramp-option-preview status-option-preview","aria-hidden":"true",style:{
+    "--s0":colors[0],"--s1":colors[1],"--s2":colors[2],"--s3":colors[3]}});
+}
+
+function EmptyRow({set,empty,label}){
+  return h(PRow,{key:"empty",label,htmlFor:"c-empty"},
+    h("span",{className:"swatch"},
+      h("input",{id:"c-empty",type:"color",value:empty,
+        onChange:e=>set("empty",e.target.value)})));
+}
+
+/* One row per status: its colour, and for all but the healthy one, the uptime a
+ * day must fall below to earn it. Editing any colour forks the palette into
+ * Custom, starting from what was on screen. */
+const THRESHOLD_KEYS=[null,"degradedBelow","partialBelow","outageBelow"];
+function StatusControls({s,setS,isDark,empty,set}){
+  const colors=statusColorsFor(s,isDark);
+  const choose=name=>setS(p=>({...p,statusPalette:name,
+    statusCustom:name===CUSTOM&&!p.statusCustom?statusColorsFor(p,isDark):p.statusCustom}));
+  const paint=(index,hex)=>setS(p=>{
+    const next=[...statusColorsFor(p,isDark)];
+    next[index]=hex;
+    return {...p,statusPalette:CUSTOM,statusCustom:next};
+  });
+  // Keep the bands ordered: outage < partial < degraded, with room for each.
+  const bounds={
+    degradedBelow:[s.partialBelow+0.1,100],
+    partialBelow:[s.outageBelow+0.1,s.degradedBelow-0.1],
+    outageBelow:[0,s.partialBelow-0.1],
+  };
+  const labelOf=name=>name===CUSTOM?"Custom":STATUS_PALETTES[name].label;
   return [
+    h(PBlock,{key:"palette",label:"Palette"},
+      h(TileGroup,{label:"Status palette",kind:"ramp",options:STATUS_PALETTE_NAMES,
+        value:s.statusPalette,onChange:choose,labelOf,
+        render:name=>h(StatusPalettePreview,{colors:name===CUSTOM
+          ?(s.statusCustom??colors)
+          :STATUS_PALETTES[name].colors(isDark)})})),
+    ...STATUS_LABELS.map((label,index)=>{
+      const key=THRESHOLD_KEYS[index];
+      const id="c-status-"+index;
+      return h(PRow,{key:id,label:index===2?"Partial":index===3?"Outage":label,htmlFor:id},
+        h("div",{className:"status-ctl"},
+          h("span",{className:"swatch"},
+            h("input",{id,type:"color",value:colors[index],"aria-label":label+" colour",
+              onChange:e=>paint(index,e.target.value)})),
+          key
+            ?h(NumberField,{id:"c-"+key,label:label+": uptime below",value:s[key],
+              min:bounds[key][0],max:bounds[key][1],step:0.1,suffix:"%",
+              onChange:v=>set(key,Math.round(v*10)/10)})
+            :h("span",{className:"status-rest"},"otherwise")));
+    }),
+    h("p",{key:"note",className:"field-note"},
+      "A day takes the worst status whose uptime threshold it falls below."),
+    h(EmptyRow,{key:"empty",set,empty,label:"No data"}),
+  ];
+}
+
+function ColourControls({s,set,setS,is3d,isDark,empty}){
+  const themed=is3d&&s.theme3d!=="color";
+  const colorBy=usesCellAxes(s)
+    ?h(ColorByChoice,{key:"by",value:s.colorBy,onChange:v=>set("colorBy",v)}):null;
+  if(statusMode(s)) return [colorBy,...StatusControls({s,setS,isDark,empty,set})];
+  return [
+    colorBy,
     is3d?h(Select,{key:"theme3d",s,set,name:"theme3d",label:"3D theme",options:THEMES_3D,format:title}):null,
     themed?h("p",{key:"themed",className:"field-note"},
       `The ${title(s.theme3d)} theme picks its own colours. Switch to Color to paint the bands yourself.`):null,
@@ -1853,10 +1982,7 @@ function ColourControls({s,set,is3d,isDark,empty}){
       h(HexField,{value:s.base,onChange:v=>set("base",v)})):null,
     h(ScaleChoices,{key:"scale",value:s.scale,onChange:value=>set("scale",value)}),
     h(NumRow,{key:"bands",s,set,name:"levels",label:"Bands",min:2,max:8}),
-    themed?null:h(PRow,{key:"empty",label:"Empty",htmlFor:"c-empty"},
-      h("span",{className:"swatch"},
-        h("input",{id:"c-empty",type:"color",value:empty,
-          onChange:e=>set("empty",e.target.value)}))),
+    themed?null:h(EmptyRow,{key:"empty",set,empty,label:"Empty"}),
   ];
 }
 
@@ -1975,7 +2101,7 @@ function CopyButton({text,label="Copy",className="btn"}){
 const themed3d=s=>s.dimension==="3d"&&s.theme3d!=="color";
 
 function snippet(s,empty,ground,colors,stride){
-  const recipe = GRAPHS[s.graph].code(s,{stride});
+  const recipe = GRAPHS[s.graph].code(s,{stride,dark:ground===GROUND_DARK});
   const { setup=[], lines } = recipe;
   const tag=s.dimension==="3d"?recipe.tag+"3D":recipe.tag;
   const p=[...lines];
@@ -1987,15 +2113,18 @@ function snippet(s,empty,ground,colors,stride){
     if(s.animation!=="none")p.push(`  animation="${s.animation}"`);
   } else {
     if(s.shape!=="rounded")p.push(`  shape="${s.shape}"`);
-    if(s.encode!=="color")p.push(`  encode="${s.encode}"`);
+    if(s.encode!=="color"&&!statusMode(s))p.push(`  encode="${s.encode}"`);
   }
-  if(s.scale!=="linear")p.push(`  scale="${s.scale}"`);
-  if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
+  // Status mode paints every known day itself, so the ramp settings are moot.
+  const ramped=!themed3d(s)&&!statusMode(s);
+  if(s.scale!=="linear"&&!statusMode(s))p.push(`  scale="${s.scale}"`);
+  if(usesCellAxes(s)) p.push(`  cellWidth={${s.cellWidth}}`, `  cellHeight={${s.cellHeight}}`);
+  else if(s.cellSize!==13)p.push(`  cellSize={${s.cellSize}}`);
   if(s.gap!==3)p.push(`  gap={${s.gap}}`);
-  if(s.levels!==4)p.push(`  levels={${s.levels}}`);
+  if(s.levels!==4&&!statusMode(s))p.push(`  levels={${s.levels}}`);
   // A named 3D theme colours the cells and the chrome itself. Printing a ramp
   // beside it would only invite a reader to fight it.
-  if(!themed3d(s)){
+  if(ramped){
     if(s.ramp===CUSTOM){
       // deriveRamp defaults ground to white, so it only needs naming on a dark
       // surface. Without it the copied code would not reproduce what is shown.
@@ -2012,9 +2141,11 @@ function snippet(s,empty,ground,colors,stride){
   if(s.dimension!=="3d"&&s.showValues){
     p.push("  cellContent={(cell) => cell.known && cell.value > 0 ? cell.value : null}");
   }
-  if(!themed3d(s)&&empty!==EMPTY_LIGHT)p.push(`  emptyColor="${empty}"`);
+  // Each renderer has its own default empty colour, so compare against the right one.
+  const defaultEmpty=s.dimension==="3d"?EMPTY_3D_DEFAULT:EMPTY_LIGHT;
+  if(!themed3d(s)&&empty!==defaultEmpty)p.push(`  emptyColor="${empty}"`);
   if(s.theme!=="system")p.push(`  data-heatmap-theme="${s.theme}"`);
-  if(s.showLegend)p.push("  showLegend");
+  if(s.showLegend&&!statusMode(s))p.push("  showLegend");
 
   const named=[tag];
   if(s.ramp===CUSTOM&&!themed3d(s)) named.push("deriveRamp");
@@ -2259,41 +2390,92 @@ const GRAPHS = {
     badge: s => s.services + " × " + s.days,
     data: (s, set) => [
       h(NumRow, { key: "s", s, set, name: "services", label: "Services", min: 4, max: 12 }),
-      h(NumRow, { key: "d", s, set, name: "days", label: "Days", min: 7, max: 60 }),
+      h(NumRow, { key: "d", s, set, name: "days", label: "Days", min: 7, max: 90 }),
     ],
-    labels: () => [],
+    labels: (s, set) => [
+      h(Switch, { key: "services", s, set, name: "showServices", label: "Service labels" }),
+      h(Switch, { key: "dates", s, set, name: "showDates", label: "Day labels" }),
+    ],
     dataKeys: ["services", "days"],
-    labelKeys: [],
+    labelKeys: ["showServices", "showDates"],
     sample: s => uptimeValues(s.services, s.days).filter(v => v.known !== false).map(v => v.value),
-    view: ({ s, common, themeAttr, stride }) => h(Heatmap, {
-      rows: s.services, columns: s.days,
-      values: uptimeValues(s.services, s.days),
-      ariaLabel: "Service uptime by day",
-      rowLabels: SERVICES.slice(0, s.services),
-      columnLabels: thinLabels(
-        Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)), stride),
-      cellLabel: c => `${SERVICES[c.row]}: ${c.known ? c.value + "% up" : "not monitored"}`,
-      tooltip: c => c.known ? `${SERVICES[c.row]} — ${c.value}% up` : `${SERVICES[c.row]} — not monitored`,
-      "data-heatmap-theme": themeAttr, ...common,
-    }),
-    code: (s, ctx) => ({
-      tag: "Heatmap",
-      setup: [
-        "// uptime: { row, column, value, known }[] — known:false where nothing was collected",
-        declare("services", SERVICES.slice(0, s.services)),
-        columnLabelDecl("dayLabels", thinLabels(
-          Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)),
-          ctx.stride)),
-      ],
-      lines: [
-        `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
-        "  rowLabels={services}", "  columnLabels={dayLabels}",
-        '  ariaLabel="Service uptime by day"',
-        "  cellLabel={(cell) => `${services[cell.row]}: ${cell.known ? cell.value + \"% up\" : \"not monitored\"}`}",
-        "  tooltip={(cell) =>",
-        "    cell.known ? `${services[cell.row]} — ${cell.value}% up` : `${services[cell.row]} — not monitored`}",
-      ],
-    }),
+    view: ({ s, common, themeAttr, stride, isDark, empty }) => {
+      const status = statusMode(s);
+      const colors = statusColorsFor(s, isDark);
+      const describe = c => !c.known ? "not monitored"
+        : status ? `${STATUS_LABELS[statusIndex(s, c.value)]}, ${c.value}% up` : `${c.value}% up`;
+      const chart = h(Heatmap, {
+        rows: s.services, columns: s.days,
+        values: uptimeValues(s.services, s.days),
+        ariaLabel: "Service uptime by day",
+        rowLabels: s.showServices ? SERVICES.slice(0, s.services) : undefined,
+        columnLabels: s.showDates ? thinLabels(
+          Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)), stride) : undefined,
+        cellLabel: c => `${SERVICES[c.row]}: ${describe(c)}`,
+        tooltip: c => `${SERVICES[c.row]} — ${describe(c)}`,
+        "data-heatmap-theme": themeAttr, ...common,
+        // 3D has no separate axes, so the thin-pill props stay in the 2D strip.
+        ...(s.dimension === "3d" ? {} : { cellWidth: s.cellWidth, cellHeight: s.cellHeight }),
+        // The built-in legend keys the ramp, which status colours replace, so
+        // the playground draws a status key of its own below.
+        ...(status ? {
+          // The ramp never shows through, so its settings are not passed at all.
+          encode: undefined, colors: undefined, scale: undefined, levels: undefined, showLegend: undefined,
+          cellColor: c => c.known ? colors[statusIndex(s, c.value)] : undefined,
+        } : {}),
+      });
+      if (!status || !s.showLegend) return chart;
+      const swatch = (color, opacity = 1) => h("span", {
+        className: "heatmap__legend-swatch", "aria-hidden": "true",
+        style: { width: 4, height: 12, borderRadius: 1, background: color, opacity },
+      });
+      return h("div", { className: "status-chart" }, chart,
+        h("div", { className: "heatmap__legend status-key", role: "list", "aria-label": "Status key" },
+          STATUS_LABELS.map((label, i) => h("span", { key: label, className: "status-key-item", role: "listitem" },
+            swatch(colors[i]), label)),
+          h("span", { className: "status-key-item", role: "listitem" }, swatch(empty, common.unknownOpacity ?? 0.5), "No data")));
+    },
+    code: (s, ctx) => {
+      const status = statusMode(s);
+      const colors = statusColorsFor(s, ctx.dark);
+      const mins = [s.degradedBelow, s.partialBelow, s.outageBelow, 0];
+      return {
+        tag: "Heatmap",
+        setup: [
+          "// uptime: { row, column, value, known }[] — known:false where nothing was collected",
+          declare("services", SERVICES.slice(0, s.services)),
+          ...(s.showDates ? [columnLabelDecl("dayLabels", thinLabels(
+            Array.from({ length: s.days }, (_, i) => dayLabel(END - (s.days - 1 - i) * 86400000)),
+            ctx.stride))] : []),
+          ...(status ? [
+            "",
+            "// Status is a category, so it bypasses the ramp. `min` is the lowest uptime for each.",
+            ...(s.statusPalette === "quiet" ? [`// Quiet palette: the healthy grey is picked for a ${ctx.dark ? "dark" : "light"} surface.`] : []),
+            "const statuses = [",
+            ...STATUS_LABELS.map((label, i) => `  { min: ${mins[i]}, label: "${label}", color: "${colors[i]}" },`),
+            "];",
+            "const statusOf = (value) => statuses.find((status) => value >= status.min);",
+          ] : []),
+        ],
+        lines: [
+          `  rows={${s.services}}`, `  columns={${s.days}}`, "  values={uptime}",
+          ...(s.showServices ? ["  rowLabels={services}"] : []),
+          ...(s.showDates ? ["  columnLabels={dayLabels}"] : []),
+          '  ariaLabel="Service uptime by day"',
+          ...(status ? [
+            "  cellColor={(cell) => cell.known ? statusOf(cell.value).color : undefined}",
+            "  cellLabel={(cell) =>",
+            "    `${services[cell.row]}: ${cell.known ? `${statusOf(cell.value).label}, ${cell.value}% up` : \"not monitored\"}`}",
+            "  tooltip={(cell) =>",
+            "    cell.known ? `${services[cell.row]} — ${statusOf(cell.value).label}, ${cell.value}% up` : `${services[cell.row]} — not monitored`}",
+          ] : [
+            "  cellLabel={(cell) => `${services[cell.row]}: ${cell.known ? cell.value + \"% up\" : \"not monitored\"}`}",
+            "  tooltip={(cell) =>",
+            "    cell.known ? `${services[cell.row]} — ${cell.value}% up` : `${services[cell.row]} — not monitored`}",
+          ]),
+        ],
+      };
+    },
   },
 };
 const GRAPH_NAMES = Object.keys(GRAPHS);
@@ -2301,6 +2483,43 @@ const CHART_KEYS=["graph",...new Set(GRAPH_NAMES.flatMap(g=>GRAPHS[g].dataKeys))
 
 /** Entrance props: the index drives an even 100ms cadence between groups. */
 const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
+
+/**
+ * Everything the preview and the Code tab are derived from, as one pure
+ * function of the settings. Keeping it outside App lets a test render both
+ * sides and check that the code shown is the chart shown.
+ */
+function buildChart(s,{isDark,days=calendarDays(s.weeks),onCameraChange}={}){
+  const is3d=s.dimension==="3d";
+  const themeAttr=s.theme==="system"?undefined:s.theme;
+  // A derived ramp is tied to the surface behind it and to the level count, so
+  // it stays legible on either ground and never runs short of bands.
+  const ground=isDark?GROUND_DARK:GROUND_LIGHT;
+  const colors=paletteFor(s.ramp,{dark:isDark,base:s.base,levels:s.levels});
+  // Until the colour is chosen explicitly, the empty cell follows the theme —
+  // a light grey on a dark ground reads as data, not as absence.
+  const empty=s.empty??(isDark?EMPTY_DARK:EMPTY_LIGHT);
+
+  // Width and height replace the square size wherever the preset splits them.
+  const common={scale:s.scale,cellSize:usesCellAxes(s)?undefined:s.cellSize,
+    gap:s.gap,levels:s.levels,showLegend:s.showLegend,
+    ...(is3d?{shape:s.shape3d,blockStyle:s.blockStyle,maxHeight:s.maxHeight,
+      theme:s.theme3d,material:s.material,animation:s.animation,
+      // Only `color` hands its bands over; the rest would be overruled by a
+      // ramp they never asked for, so the palette is withheld from them.
+      ...(themed3d(s)?{}:{colors,emptyColor:empty}),
+      yaw:s.yaw,pitch:s.pitch,zoom:s.zoom/100,onCameraChange}
+      :{colors,emptyColor:empty,shape:s.shape,encode:s.encode,
+        ...(s.showValues?{cellContent:c=>c.known&&c.value>0?c.value:null}: {})})};
+
+  const graph=GRAPHS[s.graph];
+  const stride=(usesCellAxes(s)?s.cellWidth:s.cellSize)+s.gap;
+  const ctx={s,common,themeAttr,days,stride,isDark,empty};
+  const code=snippet(s,empty,ground,colors,stride);
+  const flatView=graph.view(ctx);
+  const chart=is3d?h(s.graph==="calendar"?CalendarHeatmap3D:Heatmap3D,flatView.props):flatView;
+  return {graph,is3d,ground,colors,empty,stride,code,chart};
+}
 
 function App(){
   const [s,setS]=useState(DEFAULTS);
@@ -2327,16 +2546,8 @@ function App(){
   const themeAttr=s.theme==="system"?undefined:s.theme;
   const isDark=themeAttr?themeAttr==="dark":systemDark;
 
-  // A derived ramp is tied to the surface behind it and to the level count, so
-  // it stays legible on either ground and never runs short of bands.
-  const ground=isDark?GROUND_DARK:GROUND_LIGHT;
-  const colors=useMemo(
-    ()=>paletteFor(s.ramp,{dark:isDark,base:s.base,levels:s.levels}),
-    [s.ramp,s.base,s.levels,isDark]);
-
-  // Until the colour is chosen explicitly, the empty cell follows the theme —
-  // a light grey on a dark ground reads as data, not as absence.
-  const empty=s.empty??(isDark?EMPTY_DARK:EMPTY_LIGHT);
+  const {graph,empty,code,chart}=
+    buildChart(s,{isDark,days,onCameraChange:setCamera});
 
   // The theme choice has to reach the page chrome, not just the components.
   useEffect(()=>{
@@ -2375,21 +2586,6 @@ function App(){
     }
   };
 
-  const common={scale:s.scale,cellSize:s.cellSize,
-    gap:s.gap,levels:s.levels,showLegend:s.showLegend,
-    ...(is3d?{shape:s.shape3d,blockStyle:s.blockStyle,maxHeight:s.maxHeight,
-      theme:s.theme3d,material:s.material,animation:s.animation,
-      // Only `color` hands its bands over; the rest would be overruled by a
-      // ramp they never asked for, so the palette is withheld from them.
-      ...(themed3d(s)?{}:{colors,emptyColor:empty}),
-      yaw:s.yaw,pitch:s.pitch,zoom:s.zoom/100,onCameraChange:setCamera}
-      :{colors,emptyColor:empty,shape:s.shape,encode:s.encode,
-        ...(s.showValues?{cellContent:c=>c.known&&c.value>0?c.value:null}: {})})};
-
-  const graph=GRAPHS[s.graph];
-  const stride=s.cellSize+s.gap;
-  const ctx={s,common,themeAttr,days,stride};
-  const code=snippet(s,empty,ground,colors,stride);
 
   /* --- The strip -----------------------------------------------------------
    * The compact, frequently checked controls stay above the preview. Palette,
@@ -2398,12 +2594,11 @@ function App(){
   const dataControls=graph.data(s,set);
   const differs=(...keys)=>keys.some(k=>s[k]!==DEFAULTS[k]);
   const modified={
-    cells: is3d
-      ? differs("shape3d","blockStyle","material","animation","cellSize","gap","maxHeight")
-      : differs("shape","encode","cellSize","gap"),
+    cells: differs(...cellKeysFor(s)),
     // A withheld palette is not a change worth flagging, so under a named
     // theme the badge counts the theme alone.
-    colour: (is3d&&differs("theme3d"))||(!themed3d(s)&&differs("ramp","base","empty")),
+    colour: (is3d&&differs("theme3d"))||(!themed3d(s)&&differs("ramp","base","empty"))||
+      (usesCellAxes(s)&&differs(...STATUS_KEYS)),
     scale: differs("scale","levels"),
     labels: differs("showLegend",...(is3d?[]:["showValues"]),...graph.labelKeys),
     camera: differs("yaw","pitch","zoom"),
@@ -2411,10 +2606,8 @@ function App(){
   const sections=[
     ...(is3d?[{key:"camera",name:"Camera"}]:[]),
   ];
-  const cellKeys=is3d
-    ? ["shape3d","blockStyle","material","animation","cellSize","gap","maxHeight"]
-    : ["shape","encode","cellSize","gap"];
-  const colourKeys=["ramp","base","empty","scale","levels",...(is3d?["theme3d"]:[])];
+  const cellKeys=cellKeysFor(s);
+  const colourKeys=["ramp","base","empty","scale","levels",...(is3d?["theme3d"]:[]),...STATUS_KEYS];
   const labelKeys=["showLegend",...(is3d?[]:["showValues"]),...graph.labelKeys];
   // Leaving 3D closes a tray that no longer has anything to show.
   const openTray=sections.some(x=>x.key===tray)?tray:null;
@@ -2447,8 +2640,6 @@ function App(){
 
     return [];
   };
-  const flatView=graph.view(ctx);
-  const chart=is3d?h(s.graph==="calendar"?CalendarHeatmap3D:Heatmap3D,flatView.props):flatView;
 
   return h("div",{className:"playground-root"},
     h("div",{className:"theme-transition-scope",ref:themeScopeRef},
@@ -2491,7 +2682,7 @@ function App(){
             h(Section,{...enter(3),id:"sec-colour",title:"Colour",
               open:openSections.colour,onToggle:()=>toggleSection("colour"),
               modified:modified.colour||modified.scale,onReset:()=>resetKeys(colourKeys)},
-              h(ColourControls,{s,set,is3d,isDark,empty})),
+              h(ColourControls,{s,set,setS,is3d,isDark,empty})),
 
             h(Section,{...enter(4),id:"sec-labels",title:"Labels",
               open:openSections.labels,onToggle:()=>toggleSection("labels"),
