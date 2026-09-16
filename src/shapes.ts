@@ -33,9 +33,20 @@ export function rowSpacing(shape: HeatmapShape, cellSize: number, gap: number): 
   return shape === "hexagon" ? cellSize * 0.75 + gap : cellSize + gap;
 }
 
+/** Shapes that must keep a 1:1 box, or a circle becomes an ellipse. */
+export function isRoundShape(shape: HeatmapShape): boolean {
+  return shape === "circle" || shape === "ring";
+}
+
+/**
+ * `minSide` is the shorter edge of a non-square cell. A percentage radius
+ * resolves against each axis separately, so `rounded` would turn elliptical on
+ * a tall, thin cell; it is converted to pixels off the shorter edge instead.
+ */
 export function shapeStyle(
   shape: HeatmapShape,
   radius: number | string | undefined,
+  minSide?: number,
 ): CSSProperties {
   const style: CSSProperties = {};
   const clipPath = CLIP_PATHS[shape];
@@ -43,6 +54,8 @@ export function shapeStyle(
 
   if (radius !== undefined) {
     style.borderRadius = typeof radius === "number" ? radius + "px" : radius;
+  } else if (shape === "rounded" && minSide !== undefined) {
+    style.borderRadius = Math.round(minSide * 0.22) + "px";
   } else if (RADII[shape]) {
     style.borderRadius = RADII[shape];
   }
@@ -53,6 +66,8 @@ export function shapeStyle(
 /**
  * `bar` grows from the bottom and `ring` thickens inward, so both express
  * intensity through geometry and need the level to draw themselves.
+ * `cellSize` is the extent they grow across: the cell height for `bar`, the
+ * shorter side for `ring`.
  */
 export function fillStyle(
   shape: HeatmapShape,

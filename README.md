@@ -1,8 +1,10 @@
 # heatmap-ui
 
+![heatmap-ui playground preview](docs/cover.png)
+
 [![CI](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/tb962/heatmap-ui/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@tb962/heatmap-ui.svg)](https://www.npmjs.com/package/@tb962/heatmap-ui)
-[![license](https://img.shields.io/npm/l/@tb962/heatmap-ui.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@thilakbhat/heatmap-ui.svg)](https://www.npmjs.com/package/@thilakbhat/heatmap-ui)
+[![license](https://img.shields.io/npm/l/@thilakbhat/heatmap-ui.svg)](LICENSE)
 
 A headless heatmap toolkit for React. Eight cell shapes, an interactive 3D mode
 that runs on plain SVG, and control over every colour, size and label on the
@@ -11,12 +13,12 @@ grid.
 **[Try it in the playground →](https://tb962.github.io/heatmap-ui/)**
 
 ```bash
-npm install @tb962/heatmap-ui
+npm install @thilakbhat/heatmap-ui
 ```
 
 ```tsx
-import { CalendarHeatmap } from "@tb962/heatmap-ui";
-import "@tb962/heatmap-ui/styles.css";
+import { CalendarHeatmap } from "@thilakbhat/heatmap-ui";
+import "@thilakbhat/heatmap-ui/styles.css";
 
 <CalendarHeatmap values={days} weeks={20} showLegend />;
 ```
@@ -80,7 +82,7 @@ and `encode="both"` carry intensity redundantly.
 ## The core
 
 ```tsx
-import { Heatmap } from "@tb962/heatmap-ui";
+import { Heatmap } from "@thilakbhat/heatmap-ui";
 
 <Heatmap rows={24} columns={7} values={matrix} />;
 ```
@@ -105,10 +107,12 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `shape` | `"rounded"` | See below. |
 | `encode` | `"color"` | `"color"`, `"size"`, or `"both"`. |
 | `cellSize` | `13` | Pixels. |
+| `cellWidth` / `cellHeight` | `cellSize` | Pixels, per axis. Circles and rings stay round at the shorter side. |
 | `gap` | `3` | Pixels. |
 | `radius` | none | Overrides the shape's corner rounding. |
 | `colors` | GitHub green | The ramp, palest first. |
 | `emptyColor` | `#ebedf0` | A known value of zero. |
+| `cellColor` | none | `(cell) => string \| undefined`. Paints a cell directly for categorical data; `undefined` falls back to the ramp. |
 | `unknownOpacity` | `0.5` | Applied to slots with no data. |
 | `isSlotHidden` | none | `(row, column) => boolean` for ragged grids. |
 | `rowLabels`, `columnLabels` | none | Positioned against the grid. |
@@ -144,8 +148,8 @@ Use `Heatmap3D` for any grid, or `CalendarHeatmap3D` for dates. Both render a
 shaded, interactive SVG scene without WebGL.
 
 ```tsx
-import { Heatmap3D, CalendarHeatmap3D } from "@tb962/heatmap-ui";
-import "@tb962/heatmap-ui/styles.css";
+import { Heatmap3D, CalendarHeatmap3D } from "@thilakbhat/heatmap-ui";
+import "@thilakbhat/heatmap-ui/styles.css";
 
 <Heatmap3D
   rows={2}
@@ -226,7 +230,7 @@ For an email, README image, or scheduled asset, use the same scene without React
 or a DOM:
 
 ```ts
-import { renderHeatmap3DSvg } from "@tb962/heatmap-ui";
+import { renderHeatmap3DSvg } from "@thilakbhat/heatmap-ui";
 
 const svg = renderHeatmap3DSvg({
   rows: 1,
@@ -351,17 +355,25 @@ measured.
 />
 ```
 
-### Uptime: wide and short, with days that were never collected
+### Uptime: thin status pills, with days that were never collected
 
 This is the other kind of gap: the slots exist, but nobody was watching them.
+Status is a category, not a progression, so `cellColor` paints it directly and
+the ramp only covers what it returns `undefined` for.
 
 ```tsx
+const statusOf = (value: number) =>
+  value >= 99 ? "#3fb68b" : value >= 90 ? "#f2b53c" : value >= 25 ? "#ef8a3c" : "#e5534b";
+
 <Heatmap
   rows={services.length}
-  columns={30}
+  columns={90}
   values={uptime}                     // { row, column, value, known }[]
   rowLabels={services}                // ["api", "web", …]
-  columnLabels={dayLabels}
+  cellWidth={5}
+  cellHeight={16}
+  gap={2}
+  cellColor={(cell) => (cell.known ? statusOf(cell.value) : undefined)}
   ariaLabel="Service uptime by day"
   tooltip={(cell) =>
     cell.known ? `${cell.value}% up` : "not monitored"}
