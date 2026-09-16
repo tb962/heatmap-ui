@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 
 import { luminance, parseHex } from "./colors.js";
 import { buildCells } from "./grid.js";
-import { fillStyle, rowOffset, rowSpacing, shapeStyle } from "./shapes.js";
+import { fillStyle, isRoundShape, rowOffset, rowSpacing, shapeStyle } from "./shapes.js";
 import type { HeatmapProps, ResolvedCell } from "./types.js";
 
 /** GitHub's light ramp, as a neutral default rather than a statement. */
@@ -22,10 +22,13 @@ export function Heatmap({
   shape = "rounded",
   encode = "color",
   cellSize = 13,
+  cellWidth: cellWidthProp,
+  cellHeight: cellHeightProp,
   gap = 3,
   radius,
   colors = DEFAULT_COLORS,
   emptyColor = DEFAULT_EMPTY,
+  cellColor,
   unknownOpacity = 0.5,
   minScale = 0.35,
   rowLabels,
@@ -57,12 +60,14 @@ export function Heatmap({
     [rows, columns, values, scale, levels, thresholdsProp, isSlotHidden],
   );
 
-  const columnWidth = cellSize + gap;
-  const rowHeight = rowSpacing(shape, cellSize, gap);
+  const cellWidth = cellWidthProp ?? cellSize;
+  const cellHeight = cellHeightProp ?? cellSize;
+  const columnWidth = cellWidth + gap;
+  const rowHeight = rowSpacing(shape, cellHeight, gap);
   // Hexagon rows are offset by half a column, so the grid is that much wider.
   const overhang = shape === "hexagon" && rows > 1 ? columnWidth / 2 : 0;
   const width = columns * columnWidth - gap + overhang;
-  const height = (rows - 1) * rowHeight + cellSize;
+  const height = (rows - 1) * rowHeight + cellHeight;
 
   const label =
     ariaLabel ??
@@ -85,7 +90,7 @@ export function Heatmap({
               <span
                 key={index}
                 className="heatmap__column-label"
-                style={{ left: entry.column * columnWidth + cellSize / 2 }}
+                style={{ left: entry.column * columnWidth + cellWidth / 2 }}
               >
                 {entry.text}
               </span>
@@ -99,7 +104,7 @@ export function Heatmap({
               <span
                 key={index}
                 className="heatmap__row-label"
-                style={{ top: index * rowHeight, height: cellSize }}
+                style={{ top: index * rowHeight, height: cellHeight }}
               >
                 {text}
               </span>
@@ -114,13 +119,15 @@ export function Heatmap({
               cell={cell}
               left={cell.column * columnWidth + rowOffset(shape, cell.row, columnWidth)}
               top={cell.row * rowHeight}
-              size={cellSize}
+              width={cellWidth}
+              height={cellHeight}
               shape={shape}
               encode={encode}
               levels={levels}
               radius={radius}
               colors={colors}
               emptyColor={emptyColor}
+              cellColor={cellColor}
               unknownOpacity={unknownOpacity}
               minScale={minScale}
               tooltip={tooltip}
@@ -137,13 +144,20 @@ export function Heatmap({
       {showLegend ? (
         <div className="heatmap__legend">
           <span>{legendLabels?.less ?? "less"}</span>
-          <LegendSwatch color={emptyColor} shape={shape} size={cellSize} radius={radius} />
+          <LegendSwatch
+            color={emptyColor}
+            shape={shape}
+            width={cellWidth}
+            height={cellHeight}
+            radius={radius}
+          />
           {colors.map((color, index) => (
             <LegendSwatch
               key={color + index}
               color={color}
               shape={shape}
-              size={cellSize}
+              width={cellWidth}
+              height={cellHeight}
               radius={radius}
             />
           ))}
@@ -156,7 +170,8 @@ export function Heatmap({
               <LegendSwatch
                 color={emptyColor}
                 shape={shape}
-                size={cellSize}
+                width={cellWidth}
+                height={cellHeight}
                 radius={radius}
                 opacity={unknownOpacity}
               />
@@ -172,13 +187,15 @@ function HeatmapCellView({
   cell,
   left,
   top,
-  size,
+  width,
+  height,
   shape,
   encode,
   levels,
   radius,
   colors,
   emptyColor,
+  cellColor,
   unknownOpacity,
   minScale,
   tooltip,
@@ -191,13 +208,15 @@ function HeatmapCellView({
   cell: ResolvedCell;
   left: number;
   top: number;
-  size: number;
+  width: number;
+  height: number;
   shape: HeatmapProps["shape"] & string;
   encode: NonNullable<HeatmapProps["encode"]>;
   levels: number;
   radius: HeatmapProps["radius"];
   colors: readonly string[];
   emptyColor: string;
+  cellColor: HeatmapProps["cellColor"];
   unknownOpacity: number;
   minScale: number;
   tooltip: HeatmapProps["tooltip"];
@@ -248,25 +267,34 @@ function HeatmapCellView({
   const usesColor = encode === "color" || encode === "both";
   const intensity = levels > 0 ? cell.level / levels : 0;
   const scaleFactor = usesSize && cell.level > 0 ? minScale + (1 - minScale) * intensity : 1;
-  const color = !cell.known
+  const rampColor = !cell.known
     ? emptyColor
     : cell.level === 0
       ? emptyColor
       : usesColor
         ? colors[Math.min(colors.length - 1, cell.level - 1)]
         : colors[colors.length - 1];
+  const color = cellColor?.(cell) ?? rampColor;
+
+  const minSide = Math.min(width, height);
+  // Circles and rings would turn into ellipses, so they keep a square box.
+  const boxWidth = isRoundShape(shape) ? minSide : width;
+  const boxHeight = isRoundShape(shape) ? minSide : height;
 
   // `bar` derives its own height from the level, so the box size must not be
   // written afterwards — an explicit `height: undefined` would clobber it.
   const box: CSSProperties =
     shape === "bar"
-      ? { width: size }
-      : { width: Math.round(size * scaleFactor), height: Math.round(size * scaleFactor) };
+      ? { width }
+      : {
+          width: Math.round(boxWidth * scaleFactor),
+          height: Math.round(boxHeight * scaleFactor),
+        };
 
   const fill: CSSProperties = {
-    ...shapeStyle(shape, radius),
+    ...shapeStyle(shape, radius, width === height ? undefined : minSide),
     ...box,
-    ...fillStyle(shape, cell.level, levels, color, size),
+    ...fillStyle(shape, cell.level, levels, color, shape === "bar" ? height : minSide),
   };
   const contentText =
     typeof visualContent === "string" || typeof visualContent === "number"
@@ -283,7 +311,7 @@ function HeatmapCellView({
       ? {
           fontSize: Math.max(
             6,
-            Math.min(11, size * 0.68 - Math.max(0, contentText.length - 2) * 1.1),
+            Math.min(11, minSide * 0.68 - Math.max(0, contentText.length - 2) * 1.1),
           ),
         }
       : {}),
@@ -292,7 +320,7 @@ function HeatmapCellView({
   return (
     <div
       className="heatmap__cell-slot"
-      style={{ left, top, width: size, height: size }}
+      style={{ left, top, width, height }}
       data-known={cell.known ? "true" : "false"}
       data-level={cell.level}
       tabIndex={interactive ? 0 : undefined}
@@ -352,25 +380,31 @@ function legendSwatchSize(size: number) {
 function LegendSwatch({
   color,
   shape,
-  size,
+  width,
+  height,
   radius,
   opacity = 1,
 }: {
   color: string;
   shape: HeatmapProps["shape"] & string;
-  size: number;
+  width: number;
+  height: number;
   radius: HeatmapProps["radius"];
   opacity?: number;
 }) {
-  const swatch = legendSwatchSize(size);
+  // A non-square swatch keeps the cell's proportions, sized off its long side.
+  const round = isRoundShape(shape) || width === height;
+  const long = legendSwatchSize(round ? Math.min(width, height) : Math.max(width, height));
+  const swatchWidth = round || width > height ? long : Math.max(1, Math.round(long * (width / height)));
+  const swatchHeight = round || height > width ? long : Math.max(1, Math.round(long * (height / width)));
   return (
     <span
       className="heatmap__legend-swatch"
       aria-hidden="true"
       style={{
-        ...shapeStyle(shape, radius),
-        width: swatch,
-        height: swatch,
+        ...shapeStyle(shape, radius, round ? undefined : Math.min(swatchWidth, swatchHeight)),
+        width: swatchWidth,
+        height: swatchHeight,
         background: shape === "ring" ? "transparent" : color,
         border: shape === "ring" ? "2px solid " + color : undefined,
         opacity,

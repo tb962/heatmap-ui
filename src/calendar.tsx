@@ -68,7 +68,7 @@ function isoKey(date: Date): string {
  * Lays days onto the grid: one column per week, one row per weekday. This is
  * the only place in the package that knows what a date is.
  */
-function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap">>({
+function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap"> & { cellWidth?: number }>({
   values = [],
   to,
   weeks = 53,
@@ -141,7 +141,8 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
   // starts too few columns after the previous label there is no room for both,
   // so the later one is dropped rather than drawn on top of its neighbour.
   const monthLabels = useMemo(() => {
-    const stride = (heatmapProps.cellSize ?? 13) + (heatmapProps.gap ?? 3);
+    const stride =
+      (heatmapProps.cellWidth ?? heatmapProps.cellSize ?? 13) + (heatmapProps.gap ?? 3);
     const minColumns = Math.ceil(30 / stride);
     const kept: Array<{ column: number; text: string }> = [];
     let lastColumn = Number.NEGATIVE_INFINITY;
@@ -151,7 +152,7 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
       lastColumn = label.column;
     }
     return kept;
-  }, [columnLabels, heatmapProps.cellSize, heatmapProps.gap]);
+  }, [columnLabels, heatmapProps.cellWidth, heatmapProps.cellSize, heatmapProps.gap]);
 
   const withDate = (cell: ResolvedCell): CalendarCell => ({
     ...cell,
