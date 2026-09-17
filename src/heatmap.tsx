@@ -324,7 +324,9 @@ function HeatmapCellView({
       data-known={cell.known ? "true" : "false"}
       data-level={cell.level}
       tabIndex={interactive ? 0 : undefined}
-      role={onCellClick ? "button" : undefined}
+      // A generic div may not carry aria-label, so a labelled cell is an image
+      // of its value, as in Heatmap3D. Unlabelled cells stay generic.
+      role={onCellClick ? "button" : name ? "img" : undefined}
       aria-label={name}
       aria-describedby={open ? tooltipId : undefined}
       onPointerEnter={show}
