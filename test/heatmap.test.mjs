@@ -64,3 +64,13 @@ test("the calendar spaces month labels by cellWidth", () => {
   const count = (html) => (html.match(/heatmap__column-label"/g) || []).length;
   assert.ok(count(wide) > count(narrow));
 });
+
+test("a labelled cell has a role that permits its aria-label", () => {
+  const values = [[1, 2]];
+  const labelled = render(Heatmap, { rows: 1, columns: 2, values, cellLabel: (cell) => `Value ${cell.value}` });
+  assert.match(labelled, /role="img" aria-label="Value 1"/);
+  const clickable = render(Heatmap, { rows: 1, columns: 2, values, cellLabel: () => "Cell", onCellClick: () => {} });
+  assert.match(clickable, /role="button" aria-label="Cell"/);
+  const plain = render(Heatmap, { rows: 1, columns: 2, values });
+  assert.doesNotMatch(plain, /heatmap__cell-slot"[^>]*role=/);
+});
