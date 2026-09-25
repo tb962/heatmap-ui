@@ -7,6 +7,7 @@ import { Heatmap3D } from "./heatmap3d.js";
 import type { Heatmap3DProps, HeatmapCell, HeatmapProps, ResolvedCell } from "./types.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_WEEKS = 53;
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -33,9 +34,15 @@ export type CalendarWeeks = number | "auto" | { min?: number; max?: number };
 
 type CalendarOptions = {
   values?: ReadonlyArray<CalendarDay>;
+  /**
+   * First day shown. With `from`, the range is exact: days outside it are not
+   * drawn, `weeks` is ignored, and a range too wide for its container scrolls
+   * rather than dropping any of it. A `from` after `to` shows `to` alone.
+   */
+  from?: string | Date;
   /** Last day shown. Defaults to today. */
   to?: string | Date;
-  /** Defaults to 53. */
+  /** Defaults to 53. Ignored when `from` is set. */
   weeks?: CalendarWeeks;
   /** 0 = Sunday (default), 1 = Monday. */
   weekStart?: 0 | 1;
@@ -73,6 +80,18 @@ function isoKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** The ISO day of a date or date string, or null when it is missing or invalid. */
+function dayKey(value: string | Date | undefined): string | null {
+  if (value === undefined) return null;
+  const day = toUtcMidnight(value);
+  return Number.isNaN(day.getTime()) ? null : isoKey(day);
+}
+
+function startOfWeek(date: Date, weekStart: 0 | 1): Date {
+  const weekday = (date.getUTCDay() - weekStart + 7) % 7;
+  return new Date(date.getTime() - weekday * DAY_MS);
+}
+
 /** A week count as a whole number of at least one, or the fallback. */
 function wholeWeeks(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value)
@@ -103,6 +122,7 @@ export function resolveWeeks(weeks: CalendarWeeks | undefined): {
 function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap"> & { cellWidth?: number }>(
   {
     values = [],
+    from,
     to,
     // Resolved by the caller, which knows whether the chart can fit its container.
     weeks: _weeks,
@@ -117,16 +137,29 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
   }: Props,
   weeks: number,
 ) {
-  const end = useMemo(() => toUtcMidnight(to ?? new Date()), [to]);
+  // Keyed by day, so a fresh Date each render (or "today") does not re-lay the grid.
+  // An unreadable `to` means today and an unreadable `from` means none,
+  // rather than a render that throws.
+  const endKey = dayKey(to) ?? dayKey(new Date())!;
+  const startKey = dayKey(from);
 
-  const { cells, columnLabels, dates, hidden } = useMemo(() => {
+  const { cells, columns, columnLabels, dates, hidden } = useMemo(() => {
     const byDate = new Map(values.map((day) => [day.date, day]));
+    const end = parseIsoDate(endKey);
+    const start = startKey === null ? null : new Date(Math.min(parseIsoDate(startKey).getTime(), end.getTime()));
 
     // The grid ends on the week containing `end`, so the last column is
-    // partial whenever today is not the last day of the week.
-    const endWeekday = (end.getUTCDay() - weekStart + 7) % 7;
-    const lastColumnStart = new Date(end.getTime() - endWeekday * DAY_MS);
-    const firstColumnStart = new Date(lastColumnStart.getTime() - (weeks - 1) * 7 * DAY_MS);
+    // partial whenever today is not the last day of the week. With a start,
+    // the first column is likewise the week containing it.
+    const lastColumnStart = startOfWeek(end, weekStart);
+    const firstColumnStart = start
+      ? startOfWeek(start, weekStart)
+      : new Date(lastColumnStart.getTime() - (weeks - 1) * WEEK_MS);
+    const columnCount = start
+      ? Math.round((lastColumnStart.getTime() - firstColumnStart.getTime()) / WEEK_MS) + 1
+      : weeks;
+    // More than a year repeats month names, so January says which year it is.
+    const namesYears = columnCount > DEFAULT_WEEKS;
 
     const resolved: HeatmapCell[] = [];
     const dateByKey = new Map<string, string>();
@@ -134,23 +167,28 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
     const labels: Array<{ column: number; text: string }> = [];
     let previousMonth = -1;
 
-    for (let column = 0; column < weeks; column += 1) {
+    for (let column = 0; column < columnCount; column += 1) {
       // Which month a column belongs to is a property of the calendar, not of
       // the data, so the label is derived from the date before any value is
       // looked up. Deriving it inside the cell loop lost the label whenever
-      // the caller had supplied nothing for that column's first day.
-      const columnMonth = new Date(
-        firstColumnStart.getTime() + column * 7 * DAY_MS,
-      ).getUTCMonth();
+      // the caller had supplied nothing for that column's first day. A column
+      // is named for its first drawn day: the week holding 1 January starts
+      // in December, but a range from 1 January should not open on "Dec".
+      const columnStart = firstColumnStart.getTime() + column * WEEK_MS;
+      const columnDate = new Date(start ? Math.max(columnStart, start.getTime()) : columnStart);
+      const columnMonth = columnDate.getUTCMonth();
       if (columnMonth !== previousMonth) {
-        labels.push({ column, text: MONTHS[columnMonth] });
+        const text = namesYears && columnMonth === 0
+          ? String(columnDate.getUTCFullYear())
+          : MONTHS[columnMonth];
+        labels.push({ column, text });
         previousMonth = columnMonth;
       }
 
       for (let row = 0; row < 7; row += 1) {
-        const date = new Date(firstColumnStart.getTime() + (column * 7 + row) * DAY_MS);
-        // Days after `end` are not "no data", they simply do not exist yet.
-        if (date.getTime() > end.getTime()) {
+        const date = new Date(columnStart + row * DAY_MS);
+        // Days outside the range are not "no data", they are not in it at all.
+        if (date.getTime() > end.getTime() || (start && date.getTime() < start.getTime())) {
           hiddenSlots.add(row + ":" + column);
           continue;
         }
@@ -170,8 +208,14 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
       }
     }
 
-    return { cells: resolved, columnLabels: labels, dates: dateByKey, hidden: hiddenSlots };
-  }, [values, end, weeks, weekStart]);
+    return {
+      cells: resolved,
+      columns: columnCount,
+      columnLabels: labels,
+      dates: dateByKey,
+      hidden: hiddenSlots,
+    };
+  }, [values, endKey, startKey, weeks, weekStart]);
 
   // A three-letter month is about 24px at the label's 10px font. When a month
   // starts too few columns after the previous label there is no room for both,
@@ -211,7 +255,7 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
 
   return {
     rows: 7,
-    columns: weeks,
+    columns,
     values: cells,
     isSlotHidden: (row: number, column: number) => hidden.has(row + ":" + column),
     rowLabels,
@@ -240,7 +284,9 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
  * the one in view when the grid has to scroll.
  */
 export function CalendarHeatmap(props: CalendarHeatmapProps) {
-  const { min, max, fit } = resolveWeeks(props.weeks);
+  const { min, max, fit: fitsWeeks } = resolveWeeks(props.weeks);
+  // An exact range is never trimmed to fit; it scrolls instead.
+  const fit = fitsWeeks && props.from === undefined;
   // Until the container is measured (and always on the server) the calendar
   // renders its maximum, scrolled to the newest week, so the first paint
   // shows the same recent weeks the fitted grid will.
