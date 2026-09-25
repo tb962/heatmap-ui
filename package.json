@@ -1,6 +1,6 @@
 {
   "name": "@thilakbhat/heatmap-ui",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A headless heatmap toolkit for React. Any grid, eight cell shapes, a 3D SVG mode, and full control of colour, size and layout.",
   "license": "MIT",
   "type": "module",
@@ -30,7 +30,9 @@
     "docs/playground-2d.png",
     "docs/playground-3d.png"
   ],
-  "sideEffects": ["**/*.css"],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
@@ -47,15 +49,36 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.0.0"
   },
-  "repository": { "type": "git", "url": "git+https://github.com/tb962/heatmap-ui.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tb962/heatmap-ui.git"
+  },
   "homepage": "https://tb962.github.io/heatmap-ui/",
-  "bugs": { "url": "https://github.com/tb962/heatmap-ui/issues" },
+  "bugs": {
+    "url": "https://github.com/tb962/heatmap-ui/issues"
+  },
   "author": "tb962",
   "keywords": [
-    "heatmap", "react", "calendar-heatmap", "contribution-graph", "punchcard",
-    "hexbin", "data-visualization", "grid", "accessible", "headless",
-    "3d", "isometric", "svg", "themeable", "quantile"
+    "heatmap",
+    "react",
+    "calendar-heatmap",
+    "contribution-graph",
+    "punchcard",
+    "hexbin",
+    "data-visualization",
+    "grid",
+    "accessible",
+    "headless",
+    "3d",
+    "isometric",
+    "svg",
+    "themeable",
+    "quantile"
   ],
-  "engines": { "node": ">=20" },
-  "publishConfig": { "access": "public" }
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
