@@ -332,6 +332,48 @@ newest week, and trims to fit before the first client paint.
 `CalendarHeatmap3D` scales its scene to the container rather than scrolling, so
 `"auto"` and ranges show their maximum there.
 
+`weeks` has no upper limit: `weeks={104}` shows two years. Once a range runs
+past a year, each January is labelled with its year so repeated months stay
+unambiguous. How much history to allow is a product decision, so cap it where
+you query the data.
+
+### Choosing a period
+
+`from` and `to` set an exact range. Days outside it are not drawn, `weeks` is
+ignored, and a range wider than its container scrolls rather than dropping any
+of it:
+
+```tsx
+<CalendarHeatmap values={days} from="2025-01-01" to="2025-12-31" />
+```
+
+`calendarPeriods` builds the usual list: a rolling window ending today, then
+each year back to the first with data. The current year runs to today. The picker
+itself is yours, so it matches the rest of your UI:
+
+```tsx
+import { CalendarHeatmap, calendarPeriods } from "@thilakbhat/heatmap-ui";
+
+const periods = calendarPeriods(days);
+// [{ key: "rolling", label: "Last 12 months", range: { to } },
+//  { key: "2026", label: "2026", kind: "year", year: 2026, range: { from, to } }, …]
+
+const [key, setKey] = useState("rolling");
+const period = periods.find((p) => p.key === key) ?? periods[0];
+
+<select value={key} onChange={(e) => setKey(e.target.value)}>
+  {periods.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+</select>
+<CalendarHeatmap values={days} weeks="auto" {...period.range} />
+```
+
+It is a plain function rather than a hook, so the selection can live wherever
+yours does: component state, the URL, or the server. Labels are English
+defaults. Use `kind` and `year` to write your own, or `rollingLabel` for the
+window. To fetch one year at a time, pass the years that have activity
+(`calendarPeriods([2026, 2025, 2023])`) and load that year's days when it is
+picked. Otherwise pass every day, and the calendar reads only the ones in range.
+
 The calendar adapter handles date mapping, month labels, weekday labels, and a
 default accessible name for each day. It hides days after `to` instead of
 drawing them as missing, so a final partial column stays partial. Every

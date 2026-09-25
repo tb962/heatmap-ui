@@ -1233,7 +1233,7 @@ body[data-frame-dragging] { cursor:ew-resize; user-select:none; -webkit-user-sel
 <script type="module">
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Heatmap, Heatmap3D, CalendarHeatmap, CalendarHeatmap3D, deriveRamp, parseHex, fillStyle, shapeStyle } from "../dist/index.js";
+import { Heatmap, Heatmap3D, CalendarHeatmap, CalendarHeatmap3D, calendarPeriods, deriveRamp, parseHex, fillStyle, shapeStyle } from "../dist/index.js";
 
 const h = React.createElement;
 const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ring"];
@@ -1288,7 +1288,7 @@ const DEFAULTS = {
   ramp:"green", empty:null, showLegend:true, showValues:false, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
-  weeks:53, minWeeks:1, fitWeeks:false, weekStart:"Sunday", showMonths:true, showWeekdays:false,
+  period:"rolling", weeks:53, minWeeks:1, fitWeeks:false, weekStart:"Sunday", showMonths:true, showWeekdays:false,
   // Punchcard
   showHours:true, showDays:true,
   // Cohort retention
@@ -2254,9 +2254,26 @@ function calendarWeeks(s) {
   if (!s.fitWeeks) return s.weeks;
   const range = {};
   if (s.minWeeks > 1) range.min = s.minWeeks;
-  if (s.weeks < 53) range.max = s.weeks;
+  if (s.weeks !== 53) range.max = s.weeks;
   return Object.keys(range).length ? range : "auto";
 }
+/* Three years of history, so there is more than one year to pick and a
+ * rolling window can reach past twelve months. The data is keyed by date, so
+ * the most recent weeks look the same however far back it goes. */
+const CALENDAR_TODAY = "2026-09-07";
+const CALENDAR_WEEKS_MAX = 156;
+// The rolling window's length is the Weeks setting, so "12 months" would not
+// always be true of it.
+const CALENDAR_DAYS = calendarDays(CALENDAR_WEEKS_MAX);
+const PERIODS = calendarPeriods(CALENDAR_DAYS, { today: CALENDAR_TODAY, rollingLabel: "Until today" });
+const PERIOD_BY_KEY = Object.fromEntries(PERIODS.map(period => [period.key, period]));
+const periodOf = s => PERIOD_BY_KEY[s.period] ?? PERIODS[0];
+/** A year is its exact range; the rolling window ends today and runs `weeks` back. */
+const calendarRange = s => {
+  const period = periodOf(s);
+  return period.kind === "year" ? period.range : { ...period.range, weeks: calendarWeeks(s) };
+};
+
 const weeksCode = weeks =>
   weeks === "auto" ? '"auto"'
   : typeof weeks === "number" ? `{${weeks}}`
@@ -2351,28 +2368,34 @@ const GRAPHS = {
   calendar: {
     label: "Calendar",
     description: "The date adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.",
-    badge: s => !s.fitWeeks ? s.weeks + " weeks"
+    badge: s => periodOf(s).kind === "year" ? periodOf(s).label
+      : !s.fitWeeks ? s.weeks + " weeks"
       : s.minWeeks > 1 ? s.minWeeks + "–" + s.weeks + " weeks"
       : "up to " + s.weeks + " weeks",
     data: (s, set) => [
-      s.fitWeeks
-        // Each bound stops at the other, so the range can never invert.
-        ? h(NumPair, { key: "weeks", s, set, label: "Weeks",
-            a: { name: "minWeeks", label: "Min weeks", min: 1, max: s.weeks, suffix: "min" },
-            b: { name: "weeks", label: "Max weeks", min: Math.max(4, s.minWeeks), max: 53, suffix: "max" } })
-        : h(NumRow, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: 53 }),
-      h(Switch, { key: "fit", s, set, name: "fitWeeks", label: "Fit to width" }),
+      h(Select, { key: "period", s, set, name: "period", label: "Period",
+        options: PERIODS.map(period => period.key), format: key => PERIOD_BY_KEY[key].label }),
+      // A year is an exact range, so how many weeks to show is not a question.
+      ...(periodOf(s).kind === "year" ? [] : [
+        s.fitWeeks
+          // Each bound stops at the other, so the range can never invert.
+          ? h(NumPair, { key: "weeks", s, set, label: "Weeks",
+              a: { name: "minWeeks", label: "Min weeks", min: 1, max: s.weeks, suffix: "min" },
+              b: { name: "weeks", label: "Max weeks", min: Math.max(4, s.minWeeks), max: CALENDAR_WEEKS_MAX, suffix: "max" } })
+          : h(NumRow, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: CALENDAR_WEEKS_MAX }),
+        h(Switch, { key: "fit", s, set, name: "fitWeeks", label: "Fit to width" }),
+      ]),
       h(WeekStartChoice, { key: "start", value: s.weekStart, onChange: value => set("weekStart", value) }),
     ],
     labels: (s, set) => [
       h(Switch, { key: "months", s, set, name: "showMonths", label: "Month labels" }),
       h(Switch, { key: "days", s, set, name: "showWeekdays", label: "Weekday labels" }),
     ],
-    dataKeys: ["weeks", "minWeeks", "fitWeeks", "weekStart"],
+    dataKeys: ["period", "weeks", "minWeeks", "fitWeeks", "weekStart"],
     labelKeys: ["showMonths", "showWeekdays"],
     sample: (s, ctx) => ctx.days.filter(d => d.known !== false).map(d => d.value),
     view: ({ s, common, themeAttr, days }) => h(CalendarHeatmap, {
-      values: days, to:"2026-09-07", weeks: calendarWeeks(s), unitLabel: "events",
+      values: days, ...calendarRange(s), unitLabel: "events",
       weekStart: WEEK_START[s.weekStart],
       showMonthLabels: s.showMonths, showWeekdayLabels: s.showWeekdays,
       "data-heatmap-theme": themeAttr,
@@ -2380,7 +2403,11 @@ const GRAPHS = {
       ...common,
     }),
     code: s => {
-      const lines = ["  values={days}", '  to="2026-09-07"', `  weeks=${weeksCode(calendarWeeks(s))}`];
+      const range = calendarRange(s);
+      const lines = ["  values={days}",
+        ...(range.from ? [`  from="${range.from}"`] : []),
+        `  to="${range.to}"`,
+        ...(range.weeks !== undefined ? [`  weeks=${weeksCode(range.weeks)}`] : [])];
       if (s.weekStart !== "Sunday") lines.push(`  weekStart={${WEEK_START[s.weekStart]}}`);
       if (!s.showMonths) lines.push("  showMonthLabels={false}");
       if (s.showWeekdays) lines.push("  showWeekdayLabels");
@@ -2620,7 +2647,7 @@ const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
  * function of the settings. Keeping it outside App lets a test render both
  * sides and check that the code shown is the chart shown.
  */
-function buildChart(s,{isDark,days=calendarDays(s.weeks),onCameraChange}={}){
+function buildChart(s,{isDark,days=CALENDAR_DAYS,onCameraChange}={}){
   const is3d=s.dimension==="3d";
   const themeAttr=s.theme==="system"?undefined:s.theme;
   // A derived ramp is tied to the surface behind it and to the level count, so
@@ -2673,7 +2700,7 @@ function App(){
   const is3d=s.dimension==="3d";
   const setCamera=c=>setS(p=>({...p,yaw:c.yaw,pitch:c.pitch,zoom:c.zoom*100}));
   const resetCamera=()=>setS(p=>({...p,yaw:-35,pitch:38,zoom:100}));
-  const days=useMemo(()=>calendarDays(s.weeks),[s.weeks]);
+  const days=CALENDAR_DAYS;
   const systemDark=useSystemDark();
   const themeAttr=s.theme==="system"?undefined:s.theme;
   const isDark=themeAttr?themeAttr==="dark":systemDark;
