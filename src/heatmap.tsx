@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
 import { luminance, parseHex } from "./colors.js";
 import { buildCells } from "./grid.js";
@@ -11,8 +19,33 @@ import type { HeatmapProps, ResolvedCell } from "./types.js";
 const DEFAULT_COLORS = ["#9be9a8", "#40c463", "#30a14e", "#216e39"] as const;
 const DEFAULT_EMPTY = "#ebedf0";
 const TOOLTIP_DELAY = 300;
+const TOOLTIP_OFFSET = 8;
+const COLUMN_LABEL_HEIGHT = 16;
 
-export function Heatmap({
+// Measuring has to happen before paint, but the server has no layout to read.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** Columns of a given pitch that fit in `available` pixels. */
+export function fittingColumns(available: number, columnWidth: number, gap: number, overhang = 0) {
+  if (!(available > 0) || !(columnWidth > 0)) return 0;
+  // The epsilon absorbs float error, so a grid that fits exactly is not a column short.
+  return Math.max(0, Math.floor((available + gap - overhang) / columnWidth + 1e-6));
+}
+
+/** Props the calendar passes to the grid, not part of the public API. */
+export type HeatmapViewProps = HeatmapProps & {
+  /** Which end of an overflowing grid is in view first. Defaults to "start". */
+  scrollAnchor?: "start" | "end";
+  /** Stretches the chart to its container and reports how many columns fit. */
+  onFitColumns?: (columns: number) => void;
+};
+
+export function Heatmap(props: HeatmapProps) {
+  return <HeatmapView {...props} />;
+}
+
+/** @internal */
+export function HeatmapView({
   rows,
   columns,
   values,
@@ -40,11 +73,14 @@ export function Heatmap({
   isSlotHidden,
   showLegend = false,
   legendLabels,
+  overflow = "scroll",
+  scrollAnchor = "start",
+  onFitColumns,
   ariaLabel,
   className,
   style,
   ...rest
-}: HeatmapProps) {
+}: HeatmapViewProps) {
   const levels = levelsProp ?? colors.length ?? 4;
   const { cells, total, unknownCount } = useMemo(
     () =>
@@ -69,6 +105,44 @@ export function Heatmap({
   const width = columns * columnWidth - gap + overhang;
   const height = (rows - 1) * rowHeight + cellHeight;
 
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  // Null until measured, which the server never is.
+  const [overflowing, setOverflowing] = useState<boolean | null>(null);
+
+  useIsomorphicLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const canvas = canvasRef.current;
+    if (!viewport || !canvas) return;
+
+    const measure = () => {
+      // A container that is not laid out (display: none, a closed tab) has
+      // no width to fit; keep the last answer rather than collapse the grid.
+      if (viewport.clientWidth === 0) return;
+      // The start padding is room for focus rings, not for cells. The end
+      // padding only exists while scrolling, so it is not subtracted.
+      const available = viewport.clientWidth - parseFloat(getComputedStyle(viewport).paddingLeft);
+      onFitColumns?.(fittingColumns(available, columnWidth, gap, overhang));
+      setOverflowing(canvas.getBoundingClientRect().width > available + 0.5);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [onFitColumns, columnWidth, gap, overhang, width]);
+
+  // Unmeasured, the grid is assumed to overflow: clipping and anchoring a grid
+  // that turns out to fit is harmless, spilling one past its container is not.
+  const clipped = overflow === "scroll" && overflowing !== false;
+  // A scrolled grid must be reachable by keyboard. Focusable cells scroll it
+  // into view themselves; a grid of plain cells needs the viewport focusable.
+  const keyboardScroll =
+    overflow === "scroll" && overflowing === true && !(tooltip || cellLabel || onCellClick);
+
+  const visibleColumnLabels = columnLabels && columnLabels.length > 0 ? columnLabels : null;
   const label =
     ariaLabel ??
     "Heatmap, " + rows + " by " + columns +
@@ -80,64 +154,79 @@ export function Heatmap({
       role="group"
       aria-label={label}
       data-total={total}
+      data-overflow={overflow}
+      data-fit={onFitColumns ? "true" : undefined}
       style={style}
       {...rest}
     >
       <div className="heatmap__body">
-        {columnLabels && columnLabels.length > 0 ? (
-          <div className="heatmap__column-labels" style={{ height: 16, width }}>
-            {columnLabels.map((entry, index) => (
-              <span
-                key={index}
-                className="heatmap__column-label"
-                style={{ left: entry.column * columnWidth + cellWidth / 2 }}
-              >
-                {entry.text}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
         {rowLabels && rowLabels.length > 0 ? (
-          <div className="heatmap__row-labels" style={{ height, gridAutoRows: rowHeight }}>
+          <div
+            className="heatmap__row-labels"
+            style={{
+              height,
+              gridAutoRows: rowHeight,
+              marginTop: visibleColumnLabels ? COLUMN_LABEL_HEIGHT : 0,
+            }}
+          >
             {rowLabels.map((text, index) => (
-              <span
-                key={index}
-                className="heatmap__row-label"
-                style={{ top: index * rowHeight, height: cellHeight }}
-              >
+              <span key={index} className="heatmap__row-label" style={{ height: cellHeight }}>
                 {text}
               </span>
             ))}
           </div>
         ) : null}
 
-        <div className="heatmap__grid" style={{ width, height }}>
-          {cells.map((cell) => (
-            <HeatmapCellView
-              key={cell.row + ":" + cell.column}
-              cell={cell}
-              left={cell.column * columnWidth + rowOffset(shape, cell.row, columnWidth)}
-              top={cell.row * rowHeight}
-              width={cellWidth}
-              height={cellHeight}
-              shape={shape}
-              encode={encode}
-              levels={levels}
-              radius={radius}
-              colors={colors}
-              emptyColor={emptyColor}
-              cellColor={cellColor}
-              unknownOpacity={unknownOpacity}
-              minScale={minScale}
-              tooltip={tooltip}
-              cellContent={cellContent}
-              cellLabel={cellLabel}
-              onCellClick={onCellClick}
-              nearLeftEdge={cell.column === 0}
-              nearRightEdge={cell.column === columns - 1}
-            />
-          ))}
+        <div
+          ref={viewportRef}
+          className="heatmap__viewport"
+          data-anchor={scrollAnchor}
+          data-scrolling={clipped ? "true" : undefined}
+          tabIndex={keyboardScroll ? 0 : undefined}
+        >
+          <div ref={canvasRef} className="heatmap__canvas">
+            {visibleColumnLabels ? (
+              <div className="heatmap__column-labels" style={{ height: COLUMN_LABEL_HEIGHT, width }}>
+                {visibleColumnLabels.map((entry, index) => (
+                  <span
+                    key={index}
+                    className="heatmap__column-label"
+                    style={{ left: entry.column * columnWidth + cellWidth / 2 }}
+                  >
+                    {entry.text}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="heatmap__grid" style={{ width, height }}>
+              {cells.map((cell) => (
+                <HeatmapCellView
+                  key={cell.row + ":" + cell.column}
+                  cell={cell}
+                  left={cell.column * columnWidth + rowOffset(shape, cell.row, columnWidth)}
+                  top={cell.row * rowHeight}
+                  width={cellWidth}
+                  height={cellHeight}
+                  shape={shape}
+                  encode={encode}
+                  levels={levels}
+                  radius={radius}
+                  colors={colors}
+                  emptyColor={emptyColor}
+                  cellColor={cellColor}
+                  unknownOpacity={unknownOpacity}
+                  minScale={minScale}
+                  tooltip={tooltip}
+                  cellContent={cellContent}
+                  cellLabel={cellLabel}
+                  onCellClick={onCellClick}
+                  nearLeftEdge={cell.column === 0}
+                  nearRightEdge={cell.column === columns - 1}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -228,7 +317,30 @@ function HeatmapCellView({
 }) {
   const tooltipId = useId();
   const timer = useRef<number | null>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  // Only rendered once open, which only happens in the browser.
+  const topLayer = open && supportsPopover();
+
+  // A scrolling grid clips its overflow, so a tooltip drawn inside it would be
+  // cut off at the top row. The top layer escapes every ancestor's clipping
+  // and transform while staying in the DOM, so theme variables still apply.
+  useIsomorphicLayoutEffect(() => {
+    const slot = slotRef.current;
+    const tip = tooltipRef.current;
+    if (!topLayer || !slot || !tip) return;
+    tip.showPopover();
+    placeTooltip(tip, slot);
+    // A scroll or resize would leave it pointing at nothing.
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [topLayer]);
 
   useEffect(
     () => () => {
@@ -319,6 +431,7 @@ function HeatmapCellView({
 
   return (
     <div
+      ref={slotRef}
       className="heatmap__cell-slot"
       style={{ left, top, width, height }}
       data-known={cell.known ? "true" : "false"}
@@ -357,16 +470,38 @@ function HeatmapCellView({
       </div>
       {open && content ? (
         <div
+          ref={tooltipRef}
           id={tooltipId}
           className="heatmap__tooltip"
           role="tooltip"
-          data-align={nearLeftEdge ? "start" : nearRightEdge ? "end" : "center"}
+          popover={topLayer ? "manual" : undefined}
+          data-align={
+            topLayer ? undefined : nearLeftEdge ? "start" : nearRightEdge ? "end" : "center"
+          }
         >
           {content}
         </div>
       ) : null}
     </div>
   );
+}
+
+function supportsPopover() {
+  return typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
+}
+
+/** Centres the tooltip above its cell, flipping below and clamping to the viewport. */
+function placeTooltip(tip: HTMLElement, anchor: HTMLElement) {
+  const cell = anchor.getBoundingClientRect();
+  const { width, height } = tip.getBoundingClientRect();
+  const viewportWidth = document.documentElement.clientWidth;
+  const left = Math.min(
+    Math.max(TOOLTIP_OFFSET, cell.left + cell.width / 2 - width / 2),
+    Math.max(TOOLTIP_OFFSET, viewportWidth - width - TOOLTIP_OFFSET),
+  );
+  const above = cell.top - height - TOOLTIP_OFFSET;
+  tip.style.left = left + "px";
+  tip.style.top = (above >= 0 ? above : cell.bottom + TOOLTIP_OFFSET) + "px";
 }
 
 /*

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
-import { Heatmap } from "./heatmap.js";
+import { HeatmapView } from "./heatmap.js";
 import { Heatmap3D } from "./heatmap3d.js";
 import type { Heatmap3DProps, HeatmapCell, HeatmapProps, ResolvedCell } from "./types.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_WEEKS = 53;
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -22,12 +23,20 @@ export type CalendarDay = {
   meta?: unknown;
 };
 
+/**
+ * How many weeks to show. A number is exact. "auto" shows as many as the
+ * container fits, up to 53, dropping the oldest first. A range fits the same
+ * way within its bounds, and scrolls once even `min` does not fit.
+ * 3D charts scale rather than scroll, so they always show the maximum.
+ */
+export type CalendarWeeks = number | "auto" | { min?: number; max?: number };
+
 type CalendarOptions = {
   values?: ReadonlyArray<CalendarDay>;
   /** Last day shown. Defaults to today. */
   to?: string | Date;
-  /** Columns to render. Defaults to 53. */
-  weeks?: number;
+  /** Defaults to 53. */
+  weeks?: CalendarWeeks;
   /** 0 = Sunday (default), 1 = Monday. */
   weekStart?: 0 | 1;
   showMonthLabels?: boolean;
@@ -64,23 +73,50 @@ function isoKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** A week count as a whole number of at least one, or the fallback. */
+function wholeWeeks(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.floor(value))
+    : fallback;
+}
+
+/** Reads `weeks` as a range. A fixed count is a range of one. */
+export function resolveWeeks(weeks: CalendarWeeks | undefined): {
+  min: number;
+  max: number;
+  fit: boolean;
+} {
+  if (weeks === "auto" || (typeof weeks === "object" && weeks !== null)) {
+    const range = weeks === "auto" ? {} : weeks;
+    const min = wholeWeeks(range.min, 1);
+    // A minimum above the maximum wins: it is the floor the caller asked for.
+    return { min, max: Math.max(min, wholeWeeks(range.max, DEFAULT_WEEKS)), fit: true };
+  }
+  const count = wholeWeeks(weeks, DEFAULT_WEEKS);
+  return { min: count, max: count, fit: false };
+}
+
 /**
  * Lays days onto the grid: one column per week, one row per weekday. This is
  * the only place in the package that knows what a date is.
  */
-function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap"> & { cellWidth?: number }>({
-  values = [],
-  to,
-  weeks = 53,
-  weekStart = 0,
-  showMonthLabels = true,
-  showWeekdayLabels = false,
-  weekdayLabelRows = [1, 3, 5],
-  unitLabel = "",
-  tooltip,
-  cellLabel,
-  ...heatmapProps
-}: Props) {
+function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "cellSize" | "gap"> & { cellWidth?: number }>(
+  {
+    values = [],
+    to,
+    // Resolved by the caller, which knows whether the chart can fit its container.
+    weeks: _weeks,
+    weekStart = 0,
+    showMonthLabels = true,
+    showWeekdayLabels = false,
+    weekdayLabelRows = [1, 3, 5],
+    unitLabel = "",
+    tooltip,
+    cellLabel,
+    ...heatmapProps
+  }: Props,
+  weeks: number,
+) {
   const end = useMemo(() => toUtcMidnight(to ?? new Date()), [to]);
 
   const { cells, columnLabels, dates, hidden } = useMemo(() => {
@@ -147,7 +183,15 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
     const kept: Array<{ column: number; text: string }> = [];
     let lastColumn = Number.NEGATIVE_INFINITY;
     for (const label of columnLabels) {
-      if (label.column - lastColumn < minColumns) continue;
+      if (label.column - lastColumn < minColumns) {
+        // The range usually starts partway through a month. When that stub
+        // crowds the first whole month, the whole month keeps the label.
+        if (kept.length === 1 && kept[0].column === 0) {
+          kept[0] = label;
+          lastColumn = label.column;
+        }
+        continue;
+      }
       kept.push(label);
       lastColumn = label.column;
     }
@@ -191,15 +235,30 @@ function useCalendarProps<Props extends CalendarOptions & Pick<HeatmapProps, "ce
   };
 }
 
-/** Lays days onto a flat grid, with one column per week. */
+/**
+ * Lays days onto a flat grid, with one column per week. The newest week is
+ * the one in view when the grid has to scroll.
+ */
 export function CalendarHeatmap(props: CalendarHeatmapProps) {
-  const heatmapProps = useCalendarProps(props);
-  return <Heatmap {...heatmapProps} />;
+  const { min, max, fit } = resolveWeeks(props.weeks);
+  // Until the container is measured (and always on the server) the calendar
+  // renders its maximum, scrolled to the newest week, so the first paint
+  // shows the same recent weeks the fitted grid will.
+  const [fitted, setFitted] = useState<number | null>(null);
+  const weeks = fit && fitted !== null ? Math.min(max, Math.max(min, fitted)) : max;
+  const heatmapProps = useCalendarProps(props, weeks);
+  return (
+    <HeatmapView
+      {...heatmapProps}
+      scrollAnchor="end"
+      onFitColumns={fit ? setFitted : undefined}
+    />
+  );
 }
 
 /** Lays the same calendar onto a rotatable 3D grid, with height encoding value. */
 export function CalendarHeatmap3D(props: CalendarHeatmap3DProps) {
-  const heatmapProps = useCalendarProps(props);
+  const heatmapProps = useCalendarProps(props, resolveWeeks(props.weeks).max);
   return <Heatmap3D {...heatmapProps} />;
 }
 

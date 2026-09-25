@@ -22,18 +22,74 @@
   box-sizing: border-box;
 }
 
+/* Scrolling keeps the chart inside its container instead of spilling out. */
+.heatmap[data-overflow="scroll"] {
+  max-width: 100%;
+}
+
+/* A fitted chart spans its container, so the space it measures is the
+ * container's and never its own content's. */
+.heatmap[data-fit] {
+  display: flex;
+  width: 100%;
+}
+
 /*
- * A 2x2 grid ties the label tracks to the cell grid: the column labels share a
- * column with the cells, so they cannot drift out of alignment when the row
- * label gutter changes width.
+ * Row labels sit beside the viewport rather than inside it, so they stay put
+ * while the cells scroll. Being outside, they need no background to hide the
+ * cells passing beneath, which a sticky label would.
  */
 .heatmap__body {
-  display: grid;
-  grid-template-columns: auto auto;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/*
+ * The viewport scrolls; the canvas inside it holds the column labels and the
+ * cells together, so they cannot drift out of alignment. Padding cancelled by
+ * negative margins gives focus rings and hovered cells room inside the clip
+ * without moving the grid. The end side gets padding only while scrolling,
+ * since a negative margin there would hang past the container.
+ */
+.heatmap__viewport {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: -4px 0 -4px -4px;
+  padding: 4px 0 4px 4px;
+}
+
+.heatmap[data-fit] .heatmap__viewport {
+  flex: 1 1 0;
+}
+
+.heatmap__viewport[data-scrolling] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding-right: 4px;
+}
+
+/* Scroll origin follows direction, so an end-anchored viewport opens on its
+ * newest column and stays there as it resizes, with or without script. */
+.heatmap__viewport[data-anchor="end"] {
+  direction: rtl;
+}
+
+.heatmap__viewport:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.heatmap__canvas {
+  direction: ltr;
+  width: max-content;
+  /* Keeps a narrower grid at the start edge inside a right-to-left viewport. */
+  margin-right: auto;
 }
 
 .heatmap__grid {
-  grid-area: 2 / 2;
   position: relative;
 }
 
@@ -91,7 +147,6 @@
 
 /* Column labels sit above the cells, each centred on the column it names. */
 .heatmap__column-labels {
-  grid-area: 1 / 2;
   position: relative;
 }
 
@@ -106,8 +161,8 @@
 }
 
 .heatmap__row-labels {
-  grid-area: 2 / 1;
-  /* Size the track to its widest label; the gutter is a margin, not a grid gap. */
+  flex: none;
+  /* Size the track to its widest label; the gutter is a margin, not a gap. */
   margin-inline-end: 6px;
   position: relative;
   display: grid;
@@ -127,6 +182,7 @@
 
 .heatmap__legend {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
   color: var(--heatmap-label);
@@ -174,6 +230,15 @@
 
 .heatmap__tooltip[data-align="end"] {
   right: 0;
+}
+
+/* In the top layer the tooltip is placed by script in viewport coordinates.
+ * These undo the absolute placement above and the UA popover defaults. */
+.heatmap__tooltip[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  overflow: visible;
 }
 
 @media (prefers-color-scheme: dark) {
