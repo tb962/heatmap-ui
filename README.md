@@ -20,7 +20,7 @@ npm install @thilakbhat/heatmap-ui
 import { CalendarHeatmap } from "@thilakbhat/heatmap-ui";
 import "@thilakbhat/heatmap-ui/styles.css";
 
-<CalendarHeatmap values={days} weeks={20} showLegend />;
+<CalendarHeatmap values={days} weeks="auto" showLegend />;
 ```
 
 ## What you get
@@ -44,6 +44,8 @@ override.
 | Colour | any ramp, palest first, with separate colours for zero and for no data |
 | Labels | row and column labels, tooltips, and arbitrary content inside cells |
 | Layout | cell size, gap, corner radius, and a predicate for hiding slots |
+| Sizing | calendars that fit their container (`weeks="auto"` or `{ min, max }`), and grids that scroll inside it with labels and legend held still (`overflow`) |
+| Dates | rolling windows, exact ranges (`from`/`to`), and `calendarPeriods` for a year picker |
 
 ### The 3D mode
 
@@ -495,6 +497,10 @@ the previous label.
   `tooltip`, or `onCellClick`.
 - Tooltips open on focus as well as hover, after a 300ms delay, and are wired
   with `aria-describedby`.
+- A grid that scrolls can be scrolled from the keyboard. Focusable cells scroll
+  it into view themselves, and a grid of plain cells makes its scroll area focusable.
+- Tooltips render in the browser's top layer, so a scrolling grid or an
+  ancestor's `overflow` never clips them.
 - `encode` lets you carry intensity without relying on colour alone.
 - Hover and focus scaling is dropped under `prefers-reduced-motion`.
 
@@ -513,7 +519,11 @@ defines four variables you can override:
 ```
 
 Tooltip colours follow `prefers-color-scheme`. Set
-`data-heatmap-theme="light" | "dark"` to pin them.
+`data-heatmap-theme="light" | "dark"` to pin them. Tooltips stay inside the
+chart's DOM, so these variables still reach them from the top layer.
+
+Inside `.heatmap`, the cells and column labels sit in `.heatmap__canvas`, which
+scrolls within `.heatmap__viewport`. Row labels and the legend sit outside it.
 
 ## Playground
 
@@ -528,7 +538,9 @@ npx serve .
 
 Open `examples/playground.html`. You can switch between 2D and 3D, choose Solid,
 LEGO, or Skyline cells, and orbit the scene. The graph choices include calendar,
-punchcard, cohort retention, co-occurrence, and uptime. Adjust a prop and the
+punchcard, cohort retention, co-occurrence, and uptime. Drag the handle on the
+preview's right edge to narrow it and watch a calendar fit or scroll. The
+calendar also has a period picker built on `calendarPeriods`. Adjust a prop and the
 panel below the chart shows the exact code for the current view, including its
 imports.
 
