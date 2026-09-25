@@ -175,7 +175,11 @@ function check(settings, isDark) {
 
   const scope = evaluateSetup(setup);
   // A calendar is seven weekdays by its week count.
-  const bounds = { rows: element.props.rows ?? 7, columns: element.props.columns ?? element.props.weeks ?? 53 };
+  const weeks = element.props.weeks;
+  const bounds = {
+    rows: element.props.rows ?? 7,
+    columns: element.props.columns ?? (typeof weeks === "number" ? weeks : weeks?.max ?? 53),
+  };
   const shown = Object.fromEntries(
     Object.entries(element.props).filter(([k, v]) => v !== undefined && !PLAYGROUND_ONLY.has(k)));
 
@@ -207,7 +211,10 @@ const VARIANTS = [
   { encode: "size" }, { showValues: true }, { showLegend: false }, { empty: "#123456" },
   { theme3d: "night" }, { material: "pattern" }, { animation: "none" },
   { shape3d: "circle", blockStyle: "lego", maxHeight: 40 }, { yaw: 12, pitch: 20, zoom: 150 },
-  { weeks: 10 }, { weekStart: "Monday" }, { showMonths: false }, { showWeekdays: true },
+  { weeks: 10 }, { fitWeeks: true }, { fitWeeks: true, weeks: 20 }, { fitWeeks: true, minWeeks: 13 },
+  { fitWeeks: true, minWeeks: 8, weeks: 30 },
+  { weeks: 104 }, { fitWeeks: true, weeks: 156 }, { period: "2025" }, { period: "2026", fitWeeks: true },
+  { period: "2023", weekStart: "Monday" }, { weekStart: "Monday" }, { showMonths: false }, { showWeekdays: true },
   { showHours: false }, { showDays: false },
   { cohorts: 5, horizon: 6 }, { items: 4, hideDiagonal: false }, { items: 12 },
   { services: 4, days: 60 },

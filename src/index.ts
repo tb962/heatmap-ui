@@ -3,7 +3,8 @@
 export { Heatmap } from "./heatmap.js";
 export { Heatmap3D } from "./heatmap3d.js";
 export { renderHeatmap3DSvg, type Heatmap3DSvgLabel, type Heatmap3DSvgOptions } from "./static-svg.js";
-export { CalendarHeatmap, CalendarHeatmap3D, type CalendarCell, type CalendarDay, type CalendarHeatmapProps, type CalendarHeatmap3DProps } from "./calendar.js";
+export { CalendarHeatmap, CalendarHeatmap3D, type CalendarCell, type CalendarDay, type CalendarHeatmapProps, type CalendarHeatmap3DProps, type CalendarWeeks } from "./calendar.js";
+export { calendarPeriods, type CalendarPeriod, type CalendarPeriodsOptions, type CalendarRange } from "./periods.js";
 export { normalizeCamera, resolveHeightDomain, valueToHeight, projectPoint, projectionBounds, type Point3D, type ProjectedPoint } from "./projection3d.js";
 export { buildCells, normalizeValues, resolveThresholds } from "./grid.js";
 export {
@@ -41,6 +42,7 @@ export type {
   HeatmapEncoding,
   HeatmapLegendLabels,
   HeatmapMatrix,
+  HeatmapOverflow,
   HeatmapProps,
   HeatmapScale,
   HeatmapShape,

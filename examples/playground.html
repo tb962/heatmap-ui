@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../src/styles.css?v=4d" />
+<link rel="stylesheet" href="../src/styles.css?v=5" />
 <style>
 /* ---------------------------------------------------------------------------
  * shadcn/ui design tokens (neutral base). Real shadcn components need Tailwind
@@ -1102,6 +1102,37 @@ body[data-scrubbing="true"] { cursor: ew-resize; user-select: none; }
 .chart-status strong { color:var(--foreground); font-weight:500; }
 .chart-view-actions { display:flex; align-items:center; gap:8px; }
 .chart-view-actions .btn { height:30px; font-size:11px; }
+
+/* --- Resizable preview -------------------------------------------------- */
+/* The handle sits in the frame's own end padding, so it is never clipped by
+ * the card body's scroll and the chart's width is the frame's content box. */
+.preview-frame { position:relative; max-width:100%; padding-right:18px; }
+.frame-handle {
+  position:absolute; top:0; right:0; bottom:0; width:18px;
+  display:grid; place-items:center;
+  border-radius:6px; cursor:ew-resize; touch-action:none;
+}
+.frame-handle::before {
+  content:""; position:absolute; top:0; bottom:0; left:50%; width:1px;
+  background:var(--border);
+}
+.frame-handle span {
+  position:relative; width:4px; height:28px; border-radius:9999px;
+  background:var(--muted-foreground); opacity:.45;
+  transition:opacity 120ms ease-out, height 160ms cubic-bezier(0.23,1,0.32,1);
+}
+.frame-handle:hover span, .frame-handle[data-dragging] span { opacity:1; height:40px; }
+.frame-handle:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+.frame-handle:focus-visible span { opacity:1; }
+body[data-frame-dragging] { cursor:ew-resize; user-select:none; -webkit-user-select:none; }
+.frame-width { display:inline-flex; align-items:center; gap:2px; padding-right:2px; font-variant-numeric:tabular-nums; }
+.frame-width button {
+  display:grid; place-items:center; width:18px; height:18px; padding:0;
+  border:0; border-radius:9999px; background:transparent; color:inherit; cursor:pointer;
+}
+.frame-width button:hover { background:var(--accent); }
+.frame-width button:focus-visible { outline:none; box-shadow:var(--focus-ring); }
+@media (prefers-reduced-motion: reduce) { .frame-handle span { transition:none; } }
 @media (max-width:900px) { .stage { padding:20px; } .sidebar { position:static; height:auto; grid-template-rows:auto auto auto; margin:8px 8px 0; } .panel-body { overflow:visible; } /* The rails are the point of an inspector, so a stacked panel keeps them rather than stretching one select across the page. */ .panel-head, .psec-rows, .panel-foot { max-width:420px; } }
 @media (max-width:540px) { .stage { padding:14px; } .page-heading { align-items:flex-start; gap:12px; } .dimension-switch button { min-width:57px; padding:0 9px; } .preview-surface { padding:16px; } .code-panel-head { flex-wrap:wrap; } .three-card .card-head { flex-wrap:wrap; } .chart-status { flex-wrap:wrap; } .three-card .card-body { margin:0 -12px; } }
 
@@ -1202,7 +1233,7 @@ body[data-scrubbing="true"] { cursor: ew-resize; user-select: none; }
 <script type="module">
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Heatmap, Heatmap3D, CalendarHeatmap, CalendarHeatmap3D, deriveRamp, parseHex, fillStyle, shapeStyle } from "../dist/index.js";
+import { Heatmap, Heatmap3D, CalendarHeatmap, CalendarHeatmap3D, calendarPeriods, deriveRamp, parseHex, fillStyle, shapeStyle } from "../dist/index.js";
 
 const h = React.createElement;
 const SHAPES = ["rounded","square","circle","diamond","hexagon","plus","bar","ring"];
@@ -1257,7 +1288,7 @@ const DEFAULTS = {
   ramp:"green", empty:null, showLegend:true, showValues:false, theme:"system", base:"#8b5cf6",
   graph:"calendar",
   // Calendar
-  weeks:53, weekStart:"Sunday", showMonths:true, showWeekdays:false,
+  period:"rolling", weeks:53, minWeeks:1, fitWeeks:false, weekStart:"Sunday", showMonths:true, showWeekdays:false,
   // Punchcard
   showHours:true, showDays:true,
   // Cohort retention
@@ -2215,6 +2246,39 @@ function columnLabelDecl(name, entries){
  */
 const WEEK_START = { Sunday: 0, Monday: 1 };
 
+/**
+ * Fitting shows as many weeks as the preview holds within min and max, and
+ * scrolls once even min does not fit. Defaults are left out, as a user would.
+ */
+function calendarWeeks(s) {
+  if (!s.fitWeeks) return s.weeks;
+  const range = {};
+  if (s.minWeeks > 1) range.min = s.minWeeks;
+  if (s.weeks !== 53) range.max = s.weeks;
+  return Object.keys(range).length ? range : "auto";
+}
+/* Three years of history, so there is more than one year to pick and a
+ * rolling window can reach past twelve months. The data is keyed by date, so
+ * the most recent weeks look the same however far back it goes. */
+const CALENDAR_TODAY = "2026-09-07";
+const CALENDAR_WEEKS_MAX = 156;
+// The rolling window's length is the Weeks setting, so "12 months" would not
+// always be true of it.
+const CALENDAR_DAYS = calendarDays(CALENDAR_WEEKS_MAX);
+const PERIODS = calendarPeriods(CALENDAR_DAYS, { today: CALENDAR_TODAY, rollingLabel: "Until today" });
+const PERIOD_BY_KEY = Object.fromEntries(PERIODS.map(period => [period.key, period]));
+const periodOf = s => PERIOD_BY_KEY[s.period] ?? PERIODS[0];
+/** A year is its exact range; the rolling window ends today and runs `weeks` back. */
+const calendarRange = s => {
+  const period = periodOf(s);
+  return period.kind === "year" ? period.range : { ...period.range, weeks: calendarWeeks(s) };
+};
+
+const weeksCode = weeks =>
+  weeks === "auto" ? '"auto"'
+  : typeof weeks === "number" ? `{${weeks}}`
+  : `{{ ${Object.entries(weeks).map(([k, v]) => `${k}: ${v}`).join(", ")} }}`;
+
 function WeekStartChoice({value,onChange}){
   return h(PRow,{label:"Week starts"},
     h("div",{className:"cell-segmented week-start-toggle",role:"group","aria-label":"Week starts"},
@@ -2224,24 +2288,114 @@ function WeekStartChoice({value,onChange}){
         onClick:()=>onChange(option)},option))));
 }
 
+const FRAME_MIN = 160;
+const FRAME_HANDLE = 18;
+
+/**
+ * Lets the preview be narrowed to see how a chart meets a smaller container.
+ * `width` is the chart's width in pixels, or null for the full card.
+ */
+function ResizableFrame({ width, onWidth, children }) {
+  const frameRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+
+  const available = () => {
+    const parent = frameRef.current.parentElement;
+    const style = getComputedStyle(parent);
+    return parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - FRAME_HANDLE;
+  };
+  const current = () => frameRef.current.getBoundingClientRect().width - FRAME_HANDLE;
+  // Reaching the card's edge is the same as not being resized at all.
+  const commit = (next) => {
+    const max = available();
+    onWidth(next >= max ? null : Math.max(FRAME_MIN, Math.round(next)));
+  };
+
+  const onPointerDown = (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    const startX = event.clientX;
+    const startWidth = current();
+    handle.setPointerCapture(event.pointerId);
+    handle.focus();
+    setDragging(true);
+    document.body.dataset.frameDragging = "";
+    const move = (e) => commit(startWidth + e.clientX - startX);
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      delete document.body.dataset.frameDragging;
+      setDragging(false);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
+
+  const onKeyDown = (event) => {
+    const step = event.shiftKey ? 64 : 16;
+    const actions = {
+      ArrowLeft: () => commit(current() - step),
+      ArrowRight: () => commit(current() + step),
+      Home: () => commit(FRAME_MIN),
+      End: () => onWidth(null),
+      Enter: () => onWidth(null),
+    };
+    if (!actions[event.key]) return;
+    event.preventDefault();
+    actions[event.key]();
+  };
+
+  return h("div", {
+      ref: frameRef, className: "preview-frame",
+      style: width === null ? undefined : { width: width + FRAME_HANDLE },
+    },
+    children,
+    h("div", {
+      className: "frame-handle", role: "separator", tabIndex: 0,
+      "aria-orientation": "vertical", "aria-label": "Preview width",
+      "aria-valuemin": FRAME_MIN, "aria-valuenow": width ?? undefined,
+      "aria-valuetext": width === null ? "Full width" : width + " pixels",
+      title: "Drag to resize · double-click to reset",
+      "data-dragging": dragging ? "" : undefined,
+      onPointerDown, onKeyDown, onDoubleClick: () => onWidth(null),
+    }, h("span")));
+}
+
 const GRAPHS = {
   calendar: {
     label: "Calendar",
     description: "The date adapter. Note the pale band — that is a gap in the data, drawn differently from a zero.",
-    badge: s => s.weeks + " weeks",
+    badge: s => periodOf(s).kind === "year" ? periodOf(s).label
+      : !s.fitWeeks ? s.weeks + " weeks"
+      : s.minWeeks > 1 ? s.minWeeks + "–" + s.weeks + " weeks"
+      : "up to " + s.weeks + " weeks",
     data: (s, set) => [
-      h(NumRow, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: 53 }),
+      h(Select, { key: "period", s, set, name: "period", label: "Period",
+        options: PERIODS.map(period => period.key), format: key => PERIOD_BY_KEY[key].label }),
+      // A year is an exact range, so how many weeks to show is not a question.
+      ...(periodOf(s).kind === "year" ? [] : [
+        s.fitWeeks
+          // Each bound stops at the other, so the range can never invert.
+          ? h(NumPair, { key: "weeks", s, set, label: "Weeks",
+              a: { name: "minWeeks", label: "Min weeks", min: 1, max: s.weeks, suffix: "min" },
+              b: { name: "weeks", label: "Max weeks", min: Math.max(4, s.minWeeks), max: CALENDAR_WEEKS_MAX, suffix: "max" } })
+          : h(NumRow, { key: "weeks", s, set, name: "weeks", label: "Weeks", min: 4, max: CALENDAR_WEEKS_MAX }),
+        h(Switch, { key: "fit", s, set, name: "fitWeeks", label: "Fit to width" }),
+      ]),
       h(WeekStartChoice, { key: "start", value: s.weekStart, onChange: value => set("weekStart", value) }),
     ],
     labels: (s, set) => [
       h(Switch, { key: "months", s, set, name: "showMonths", label: "Month labels" }),
       h(Switch, { key: "days", s, set, name: "showWeekdays", label: "Weekday labels" }),
     ],
-    dataKeys: ["weeks", "weekStart"],
+    dataKeys: ["period", "weeks", "minWeeks", "fitWeeks", "weekStart"],
     labelKeys: ["showMonths", "showWeekdays"],
     sample: (s, ctx) => ctx.days.filter(d => d.known !== false).map(d => d.value),
     view: ({ s, common, themeAttr, days }) => h(CalendarHeatmap, {
-      values: days, to:"2026-09-07", weeks: s.weeks, unitLabel: "events",
+      values: days, ...calendarRange(s), unitLabel: "events",
       weekStart: WEEK_START[s.weekStart],
       showMonthLabels: s.showMonths, showWeekdayLabels: s.showWeekdays,
       "data-heatmap-theme": themeAttr,
@@ -2249,7 +2403,11 @@ const GRAPHS = {
       ...common,
     }),
     code: s => {
-      const lines = ["  values={days}", '  to="2026-09-07"', `  weeks={${s.weeks}}`];
+      const range = calendarRange(s);
+      const lines = ["  values={days}",
+        ...(range.from ? [`  from="${range.from}"`] : []),
+        `  to="${range.to}"`,
+        ...(range.weeks !== undefined ? [`  weeks=${weeksCode(range.weeks)}`] : [])];
       if (s.weekStart !== "Sunday") lines.push(`  weekStart={${WEEK_START[s.weekStart]}}`);
       if (!s.showMonths) lines.push("  showMonthLabels={false}");
       if (s.showWeekdays) lines.push("  showWeekdayLabels");
@@ -2489,7 +2647,7 @@ const enter=(i,extra)=>({className:"enter",style:{"--enter-index":i,...extra}});
  * function of the settings. Keeping it outside App lets a test render both
  * sides and check that the code shown is the chart shown.
  */
-function buildChart(s,{isDark,days=calendarDays(s.weeks),onCameraChange}={}){
+function buildChart(s,{isDark,days=CALENDAR_DAYS,onCameraChange}={}){
   const is3d=s.dimension==="3d";
   const themeAttr=s.theme==="system"?undefined:s.theme;
   // A derived ramp is tied to the surface behind it and to the level count, so
@@ -2524,6 +2682,7 @@ function buildChart(s,{isDark,days=calendarDays(s.weeks),onCameraChange}={}){
 function App(){
   const [s,setS]=useState(DEFAULTS);
   const [panelView,setPanelView]=useState("preview");
+  const [previewWidth,setPreviewWidth]=useState(null);
   const [tray,setTray]=useState(null);
   const [openSections,setOpenSections]=useState(
     {chart:true,cells:true,colour:true,labels:true});
@@ -2541,7 +2700,7 @@ function App(){
   const is3d=s.dimension==="3d";
   const setCamera=c=>setS(p=>({...p,yaw:c.yaw,pitch:c.pitch,zoom:c.zoom*100}));
   const resetCamera=()=>setS(p=>({...p,yaw:-35,pitch:38,zoom:100}));
-  const days=useMemo(()=>calendarDays(s.weeks),[s.weeks]);
+  const days=CALENDAR_DAYS;
   const systemDark=useSystemDark();
   const themeAttr=s.theme==="system"?undefined:s.theme;
   const isDark=themeAttr?themeAttr==="dark":systemDark;
@@ -2656,7 +2815,7 @@ function App(){
                 h("div",{className:"brand-mark"},h(BrandMark)),
                 h("div",{className:"brand-copy"},
                   h("div",{className:"brand-name"},"heatmap-ui"),
-                  h("span",{className:"brand-version"},"v0.2.1"))),
+                  h("span",{className:"brand-version"},"v0.3.0"))),
               h(Tabs,{value:s.theme,label:"Theme",compact:true,
                 onChange:(v,meta)=>changeTheme(v,meta),options:[
                   {value:"system",label:"System",icon:"monitor"},
@@ -2694,7 +2853,7 @@ function App(){
               changed>0?h("span",{className:"pill-mark","aria-hidden":"true"}):null,
               changed===0?"Matches defaults":changed===1?"1 area changed":changed+" areas changed"),
             h("button",{type:"button",className:"btn btn-ghost",
-              onClick:()=>{setTray(null);setS(p=>({...DEFAULTS,theme:p.theme}));}},
+              onClick:()=>{setTray(null);setPreviewWidth(null);setS(p=>({...DEFAULTS,theme:p.theme}));}},
               h(Icon,{name:"reset",size:14,stroke:2}),"Reset all"))),
 
     h("main",{className:"stage"},
@@ -2736,11 +2895,15 @@ function App(){
                     is3d?h("div",{className:"three-kicker"},h("i"),"Live 3D preview"):null,
                     h("div",{className:"card-title-line"},
                       h("h2",{className:"card-title"},graph.label+(is3d?" / "+MATERIALS.find(m=>m.value===s.blockStyle).label+" · "+title(s.theme3d):"")),
-                      h("span",{className:"badge"},graph.badge(s))),
+                      h("span",{className:"badge"},graph.badge(s)),
+                      previewWidth!==null?h("span",{className:"badge frame-width"},previewWidth+"px",
+                        h("button",{type:"button","aria-label":"Reset preview width",title:"Reset width",
+                          onClick:()=>setPreviewWidth(null)},h(Icon,{name:"reset",size:11}))):null),
                     h("p",{className:"card-desc"},is3d?"Drag to orbit. Focus a cell to explore its value.":graph.description)),
                   is3d?h("div",{className:"chart-view-actions"},
                     h("button",{type:"button",className:"btn btn-ghost",onClick:resetCamera},h(Icon,{name:"reset",size:13}),"Reset view")):null),
-                h("div",{className:"card-body"},chart),
+                h("div",{className:"card-body"},
+                  h(ResizableFrame,{width:previewWidth,onWidth:setPreviewWidth},chart)),
                 is3d?h("div",{className:"chart-status"},
                   h("span",null,h(Icon,{name:"height",size:13}),"Height",h("strong",null,"Value")),
                   h("span",null,"Drag to orbit · + / − to zoom"),

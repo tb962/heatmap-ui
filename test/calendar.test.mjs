@@ -86,8 +86,8 @@ test("month labels thin out when the columns are too narrow to hold them", () =>
   const count = (html) =>
     (html.match(/heatmap__column-label/g) || []).length;
 
-  // April runs out one column into the range, so May cannot also be labelled
-  // at a 13px cell — but there is room for it at 30px.
+  // April runs out one column into the range, so at a 13px cell only one of
+  // April and May can be labelled — but there is room for both at 30px.
   assert.ok(count(render(CalendarHeatmap, { ...props, cellSize: 13 })) <
             count(render(CalendarHeatmap, { ...props, cellSize: 30 })));
 });

@@ -20,7 +20,7 @@ npm install @thilakbhat/heatmap-ui
 import { CalendarHeatmap } from "@thilakbhat/heatmap-ui";
 import "@thilakbhat/heatmap-ui/styles.css";
 
-<CalendarHeatmap values={days} weeks={20} showLegend />;
+<CalendarHeatmap values={days} weeks="auto" showLegend />;
 ```
 
 ## What you get
@@ -44,6 +44,8 @@ override.
 | Colour | any ramp, palest first, with separate colours for zero and for no data |
 | Labels | row and column labels, tooltips, and arbitrary content inside cells |
 | Layout | cell size, gap, corner radius, and a predicate for hiding slots |
+| Sizing | calendars that fit their container (`weeks="auto"` or `{ min, max }`), and grids that scroll inside it with labels and legend held still (`overflow`) |
+| Dates | rolling windows, exact ranges (`from`/`to`), and `calendarPeriods` for a year picker |
 
 ### The 3D mode
 
@@ -121,6 +123,7 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `cellLabel` | none | `(cell) => string`; the accessible name for a cell. |
 | `onCellClick` | none | Makes cells buttons. |
 | `showLegend` | `false` | less/more key, plus "no data" when relevant. |
+| `overflow` | `"scroll"` | A grid wider than its container scrolls inside it, with row labels and legend held still. `"visible"` lets it spill out. |
 
 ### Shading
 
@@ -304,7 +307,74 @@ labels and tooltips, so it stays an SVG renderer without an HTML overlay.
 />
 ```
 
-`weeks` defaults to 53 when omitted.
+### Fitting the container
+
+`weeks` takes a number, `"auto"`, or a `{ min, max }` range:
+
+| `weeks` | Container wide enough | Container too narrow |
+| --- | --- | --- |
+| `53` (default) | 53 weeks | 53 weeks, scrolling |
+| `"auto"` | as many weeks as fit, up to 53 | as many weeks as fit, never scrolls |
+| `{ min: 13, max: 53 }` | as many weeks as fit, 13 to 53 | 13 weeks, scrolling |
+
+```tsx
+<CalendarHeatmap values={days} weeks="auto" />
+<CalendarHeatmap values={days} weeks={{ min: 13 }} showWeekdayLabels />
+```
+
+A fitted calendar spans its container and drops the oldest weeks first, so the
+cell size never changes. When a calendar scrolls, it opens on the newest week
+and stays anchored there as the container resizes. The weekday labels and
+legend sit outside the scrolling area, so they stay put. Set `overflow="visible"` to
+handle overflow yourself.
+
+On the server, a fitted calendar renders its maximum, already scrolled to the
+newest week, and trims to fit before the first client paint.
+
+`CalendarHeatmap3D` scales its scene to the container rather than scrolling, so
+`"auto"` and ranges show their maximum there.
+
+`weeks` has no upper limit: `weeks={104}` shows two years. Once a range runs
+past a year, each January is labelled with its year so repeated months stay
+unambiguous. How much history to allow is a product decision, so cap it where
+you query the data.
+
+### Choosing a period
+
+`from` and `to` set an exact range. Days outside it are not drawn, `weeks` is
+ignored, and a range wider than its container scrolls rather than dropping any
+of it:
+
+```tsx
+<CalendarHeatmap values={days} from="2025-01-01" to="2025-12-31" />
+```
+
+`calendarPeriods` builds the usual list: a rolling window ending today, then
+each year back to the first with data. The current year runs to today. The picker
+itself is yours, so it matches the rest of your UI:
+
+```tsx
+import { CalendarHeatmap, calendarPeriods } from "@thilakbhat/heatmap-ui";
+
+const periods = calendarPeriods(days);
+// [{ key: "rolling", label: "Last 12 months", range: { to } },
+//  { key: "2026", label: "2026", kind: "year", year: 2026, range: { from, to } }, …]
+
+const [key, setKey] = useState("rolling");
+const period = periods.find((p) => p.key === key) ?? periods[0];
+
+<select value={key} onChange={(e) => setKey(e.target.value)}>
+  {periods.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+</select>
+<CalendarHeatmap values={days} weeks="auto" {...period.range} />
+```
+
+It is a plain function rather than a hook, so the selection can live wherever
+yours does: component state, the URL, or the server. Labels are English
+defaults. Use `kind` and `year` to write your own, or `rollingLabel` for the
+window. To fetch one year at a time, pass the years that have activity
+(`calendarPeriods([2026, 2025, 2023])`) and load that year's days when it is
+picked. Otherwise pass every day, and the calendar reads only the ones in range.
 
 The calendar adapter handles date mapping, month labels, weekday labels, and a
 default accessible name for each day. It hides days after `to` instead of
@@ -427,6 +497,10 @@ the previous label.
   `tooltip`, or `onCellClick`.
 - Tooltips open on focus as well as hover, after a 300ms delay, and are wired
   with `aria-describedby`.
+- A grid that scrolls can be scrolled from the keyboard. Focusable cells scroll
+  it into view themselves, and a grid of plain cells makes its scroll area focusable.
+- Tooltips render in the browser's top layer, so a scrolling grid or an
+  ancestor's `overflow` never clips them.
 - `encode` lets you carry intensity without relying on colour alone.
 - Hover and focus scaling is dropped under `prefers-reduced-motion`.
 
@@ -445,7 +519,11 @@ defines four variables you can override:
 ```
 
 Tooltip colours follow `prefers-color-scheme`. Set
-`data-heatmap-theme="light" | "dark"` to pin them.
+`data-heatmap-theme="light" | "dark"` to pin them. Tooltips stay inside the
+chart's DOM, so these variables still reach them from the top layer.
+
+Inside `.heatmap`, the cells and column labels sit in `.heatmap__canvas`, which
+scrolls within `.heatmap__viewport`. Row labels and the legend sit outside it.
 
 ## Playground
 
@@ -460,7 +538,9 @@ npx serve .
 
 Open `examples/playground.html`. You can switch between 2D and 3D, choose Solid,
 LEGO, or Skyline cells, and orbit the scene. The graph choices include calendar,
-punchcard, cohort retention, co-occurrence, and uptime. Adjust a prop and the
+punchcard, cohort retention, co-occurrence, and uptime. Drag the handle on the
+preview's right edge to narrow it and watch a calendar fit or scroll. The
+calendar also has a period picker built on `calendarPeriods`. Adjust a prop and the
 panel below the chart shows the exact code for the current view, including its
 imports.
 
