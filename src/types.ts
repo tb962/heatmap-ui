@@ -52,6 +52,13 @@ export type HeatmapScale =
   | "log"
   | ((value: number, values: readonly number[]) => number);
 
+/**
+ * What a grid wider than its container does. "scroll" keeps the chart inside
+ * the container and scrolls the cells, with the row labels and legend held
+ * still. "visible" lets it spill out, for callers who manage overflow themselves.
+ */
+export type HeatmapOverflow = "scroll" | "visible";
+
 export type HeatmapLegendLabels = {
   less?: ReactNode;
   more?: ReactNode;
@@ -118,6 +125,9 @@ export type HeatmapProps = Omit<HTMLAttributes<HTMLDivElement>, "values"> & {
   showLegend?: boolean;
   legendLabels?: HeatmapLegendLabels;
 
+  /** Defaults to "scroll". */
+  overflow?: HeatmapOverflow;
+
   ariaLabel?: string;
   style?: CSSProperties;
 };
@@ -157,7 +167,8 @@ export type Heatmap3DFaceColor = (args: Heatmap3DFaceColorArgs) => string;
 /** Heights encode actual values linearly, independently of the colour bands. */
 export type Heatmap3DProps = Omit<
   HeatmapProps,
-  "shape" | "encode" | "radius" | "minScale" | "cellContent" | "cellWidth" | "cellHeight" | "cellColor"
+  | "shape" | "encode" | "radius" | "minScale" | "cellContent" | "cellWidth" | "cellHeight"
+  | "cellColor" | "overflow"
 > & {
   shape?: Heatmap3DShape;
   blockStyle?: Heatmap3DBlockStyle;

@@ -121,6 +121,7 @@ values={[{ row: 0, column: 0, value: 3, known: true, meta: anything }]}
 | `cellLabel` | none | `(cell) => string`; the accessible name for a cell. |
 | `onCellClick` | none | Makes cells buttons. |
 | `showLegend` | `false` | less/more key, plus "no data" when relevant. |
+| `overflow` | `"scroll"` | A grid wider than its container scrolls inside it, with row labels and legend held still. `"visible"` lets it spill out. |
 
 ### Shading
 
@@ -304,7 +305,32 @@ labels and tooltips, so it stays an SVG renderer without an HTML overlay.
 />
 ```
 
-`weeks` defaults to 53 when omitted.
+### Fitting the container
+
+`weeks` takes a number, `"auto"`, or a `{ min, max }` range:
+
+| `weeks` | Container wide enough | Container too narrow |
+| --- | --- | --- |
+| `53` (default) | 53 weeks | 53 weeks, scrolling |
+| `"auto"` | as many weeks as fit, up to 53 | as many weeks as fit, never scrolls |
+| `{ min: 13, max: 53 }` | as many weeks as fit, 13 to 53 | 13 weeks, scrolling |
+
+```tsx
+<CalendarHeatmap values={days} weeks="auto" />
+<CalendarHeatmap values={days} weeks={{ min: 13 }} showWeekdayLabels />
+```
+
+A fitted calendar spans its container and drops the oldest weeks first, so the
+cell size never changes. When a calendar scrolls, it opens on the newest week
+and stays anchored there as the container resizes. The weekday labels and
+legend sit outside the scrolling area, so they stay put. Set `overflow="visible"` to
+handle overflow yourself.
+
+On the server, a fitted calendar renders its maximum, already scrolled to the
+newest week, and trims to fit before the first client paint.
+
+`CalendarHeatmap3D` scales its scene to the container rather than scrolling, so
+`"auto"` and ranges show their maximum there.
 
 The calendar adapter handles date mapping, month labels, weekday labels, and a
 default accessible name for each day. It hides days after `to` instead of
